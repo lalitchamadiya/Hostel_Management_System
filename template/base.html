@@ -1,497 +1,502 @@
-{% load static %}
-
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="">
-    <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
-    <meta name="generator" content="Hugo 0.84.0">
-    <title>hostel Management System {% block title %}{% endblock %}</title>
-    <!-- Apply saved theme BEFORE CSS loads — prevents flash of wrong theme -->
-    <script>
-      (function() {
-        var t = localStorage.getItem('hms_theme');
-        if (t) document.documentElement.setAttribute('data-theme', t);
-      })();
-    </script>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    
-    <!-- Custom CSS applied over Bootstrap 5 -->
-    <link rel="stylesheet" type="text/css" href="{% static 'css/style.css' %}?v=1.3">
-
-
-    <!-- PWA & Mobile Web App Integration -->
-    <link rel="manifest" href="/manifest.json">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="HMS App">
-    
-    <link rel="apple-touch-icon" href="/static/image/icon-192x192.png" sizes="192x192">
-    <link rel="apple-touch-icon" href="/static/image/icon-512x512.png" sizes="512x512">
-    <link rel="icon" href="/static/image/icon-192x192.png" sizes="192x192" type="image/png">
-    
-    <meta name="theme-color" content="#6366f1">
-    
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then(reg => {
-              console.log('Service Worker registered scope:', reg.scope);
-              reg.update();
-            })
-            .catch(err => console.log('Service Worker registering failed:', err));
-        });
-      }
-    </script>
-
-
-    
-    <!-- Custom styles for this template -->
-  </head>
-  <body>
-    
-<header class="navbar navbar-dark sticky-top top-nav flex-md-nowrap p-0 z-3">
-  {% include 'title_nav.html'%}
-</header>
-
-<div class="container-fluid">
-  <div class="d-flex gap-md-3 gap-2" style="align-items: stretch; min-height: calc(100vh - 56px);">
-    {% if not no_sidebar %}
-      {% include 'side_navbar.html'%}
-    {% endif %}
-
-    <main role="main" class="px-md-4 py-3" style="flex: 1 1 0; min-width: 0; overflow-x: hidden;">
-      {% include '_messages.html' %}
-
-      {% block content %}
-      {% endblock %}
-    </main>
-  </div>
-</div>
-
-<!-- Mobile sidebar backdrop overlay -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <script src="{% static 'javaScript/Script.js' %}?v=1.2"></script>
-      <script src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js" integrity="sha384-uO3SXW5IuS1ZpFPKugNNWqTZRRglnUJK6UAZ/gxOX80nxEkN9NcGZTftn6RzhGWE" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js" integrity="sha384-zNy6FEbO50N+Cg5wap8IKA4M/ZnLJgzc6w2NqACZaK0u0FXfOWRRJOnQtpZun8ha" crossorigin="anonymous"></script>
-
-<script>
-/* ---- Global Bootstrap Modal Teleport & Stacking Context Fix ---- */
-document.addEventListener('show.bs.modal', function (event) {
-  var modal = event.target;
-  if (modal && modal.parentElement !== document.body) {
-    document.body.appendChild(modal);
-  }
-});
-
-/* ---- Premium Navigation & Sidebar Features ---- */
-(function() {
-  var btn       = document.getElementById('sidebarToggleBtn');
-  var sidebar   = document.querySelector('.sidebar-wrapper');
-  var overlay   = document.getElementById('sidebarOverlay');
-  if (!btn || !sidebar) return;
-
-  var isMobile  = function() { return window.innerWidth < 768; };
-  var STORE_KEY = 'hms_sidebar_collapsed';
-
-  // Restore desktop state from localStorage
-  if (!isMobile() && localStorage.getItem(STORE_KEY) === '1') {
-    sidebar.classList.add('sidebar-collapsed');
-  }
-
-  btn.addEventListener('click', function() {
-    if (isMobile()) {
-      var open = sidebar.classList.toggle('sidebar-mobile-open');
-      if (overlay) overlay.classList.toggle('active', open);
-    } else {
-      var collapsed = sidebar.classList.toggle('sidebar-collapsed');
-      localStorage.setItem(STORE_KEY, collapsed ? '1' : '0');
-    }
-  });
-
-  if (overlay) {
-    overlay.addEventListener('click', function() {
-      sidebar.classList.remove('sidebar-mobile-open');
-      overlay.classList.remove('active');
-    });
-  }
-
-  window.addEventListener('resize', function() {
-    if (!isMobile()) {
-      sidebar.classList.remove('sidebar-mobile-open');
-      if (overlay) overlay.classList.remove('active');
-    } else {
-      sidebar.classList.remove('sidebar-collapsed');
-    }
-  });
-})();
-
-/* ---- Dynamic Breadcrumb Parser ---- */
-(function() {
-  var breadcrumbContainer = document.getElementById('dynamicBreadcrumbSelector');
-  if (breadcrumbContainer) {
-    var paths = window.location.pathname.split('/').filter(function(p) { return p; });
-    var html = '<li class="breadcrumb-item"><a href="/" class="text-muted text-decoration-none"><i class="bi bi-house-door-fill me-1"></i>Home</a></li>';
-    var currentPath = '';
-    paths.forEach(function(part, index) {
-      currentPath += '/' + part;
-      var displayName = part.replace(/[-_]/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-      if (!isNaN(part)) {
-        displayName = '#' + part;
-      }
-      if (index === paths.length - 1) {
-        html += '<li class="breadcrumb-item active text-primary fw-semibold" aria-current="page">' + displayName + '</li>';
-      } else {
-        html += '<li class="breadcrumb-item"><a href="' + currentPath + '" class="text-muted text-decoration-none">' + displayName + '</a></li>';
-      }
-    });
-    breadcrumbContainer.innerHTML = html;
-  }
-})();
-
-/* ---- Fullscreen Trigger ---- */
-(function() {
-  var fsBtn = document.getElementById('fullscreenToggleBtn');
-  var fsIcon = document.getElementById('fsIcon');
-  if (fsBtn && fsIcon) {
-    fsBtn.addEventListener('click', function() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().then(function() {
-          fsIcon.className = 'bi bi-fullscreen-exit';
-        }).catch(function(err) {
-          console.error('Error enabling fullscreen:', err);
-        });
-      } else {
-        document.exitFullscreen().then(function() {
-          fsIcon.className = 'bi bi-fullscreen';
-        });
-      }
-    });
-  }
-})();
-
-/* ---- Ctrl + K Global Search Focus Trigger ---- */
-document.addEventListener('keydown', function(event) {
-  if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
-    var gSearch = document.getElementById('globalSearchInput');
-    if (gSearch) {
-      event.preventDefault();
-      gSearch.focus();
-    }
-  }
-  if (event.key === 'Escape') {
-    var gSearch = document.getElementById('globalSearchInput');
-    if (gSearch) {
-      gSearch.blur();
-    }
-  }
-});
-
-/* ---- Global Page Search Filter ---- */
-(function() {
-  var globalSearch = document.getElementById('globalSearchInput');
-  if (globalSearch) {
-    globalSearch.addEventListener('input', function() {
-      var query = this.value.toLowerCase().trim();
-      
-      // 1. Filter dashboard shortcut cards
-      var shortcuts = document.querySelectorAll('.shortcut-card');
-      shortcuts.forEach(function(card) {
-        var text = card.textContent.toLowerCase();
-        var col = card.closest('.col-6, .col-md-4, .col-lg-3');
-        if (text.indexOf(query) !== -1 || query === '') {
-          if (col) col.style.setProperty('display', '', 'important');
-        } else {
-          if (col) col.style.setProperty('display', 'none', 'important');
-        }
-      });
-      
-      // 2. Filter key-performance indicators (KPI cards)
-      var kpis = document.querySelectorAll('.kpi-card');
-      kpis.forEach(function(card) {
-        if (!card.classList.contains('shortcut-card') && !card.closest('.shortcut-card')) {
-          var text = card.textContent.toLowerCase();
-          var col = card.closest('.col-6, .col-md-4, .col-xl-2, .col-md-3, .col-6.col-md-3');
-          if (text.indexOf(query) !== -1 || query === '') {
-            if (col) col.style.setProperty('display', '', 'important');
-          } else {
-            if (col) col.style.setProperty('display', 'none', 'important');
-          }
-        }
-      });
-      
-      // 3. Filter table rows
-      var rows = document.querySelectorAll('.sa-table tbody tr, .table tbody tr');
-      rows.forEach(function(row) {
-        var text = row.textContent.toLowerCase();
-        if (text.indexOf(query) !== -1 || query === '') {
-          row.style.setProperty('display', '', 'important');
-        } else {
-          row.style.setProperty('display', 'none', 'important');
-        }
-      });
-      
-      // 4. Filter health rows
-      var healthRows = document.querySelectorAll('.health-row');
-      healthRows.forEach(function(row) {
-        var text = row.textContent.toLowerCase();
-        if (text.indexOf(query) !== -1 || query === '') {
-          row.style.setProperty('display', '', 'important');
-        } else {
-          row.style.setProperty('display', 'none', 'important');
-        }
-      });
-      
-      // 5. Hide panel-cards if empty in inner content
-      var panels = document.querySelectorAll('.panel-card');
-      panels.forEach(function(panel) {
-        if (query === '') {
-          panel.style.setProperty('display', '', 'important');
-          return;
-        }
-        var table = panel.querySelector('table');
-        var healthRowsList = panel.querySelectorAll('.health-row');
-        var anyVisible = false;
-        
-        if (table) {
-          var visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
-          if (visibleRows.length > 0) anyVisible = true;
-        } else if (healthRowsList.length > 0) {
-          var visibleHealth = panel.querySelectorAll('.health-row:not([style*="display: none"])');
-          if (visibleHealth.length > 0) anyVisible = true;
-        } else {
-          var pText = panel.textContent.toLowerCase();
-          if (pText.indexOf(query) !== -1) anyVisible = true;
-        }
-        
-        if (anyVisible) {
-          panel.style.setProperty('display', '', 'important');
-        } else {
-          panel.style.setProperty('display', 'none', 'important');
-        }
-      });
-    });
-  }
-})();
-
-/* ---- Theme Direct Toggle Handler ---- */
-window.themeToggleHandler = function() {
-  var THEME_KEY = 'hms_theme';
-  var current = localStorage.getItem(THEME_KEY) || 'dark';
-  var target = (current === 'dark') ? 'light' : 'dark';
-  if (typeof window.applyThemeMode === 'function') {
-    window.applyThemeMode(target);
-  }
-};
-
-/* ---- Sidebar Menu Search Filter ---- */
-(SidebarMenuSearch = function() {
-  var searchInput = document.getElementById('sidebarSearchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', function() {
-      var query = this.value.toLowerCase().trim();
-      var sections = document.querySelectorAll('.sidebar-pro .nav-section');
-      var items = document.querySelectorAll('.sidebar-pro .nav-item');
-      
-      items.forEach(function(item) {
-        var link = item.querySelector('.nav-link');
-        var text = link ? link.textContent.toLowerCase() : '';
-        var submenu = item.querySelector('.collapse-submenu-list');
-        var submenuMatch = false;
-        
-        if (submenu) {
-          var sublinks = submenu.querySelectorAll('.nav-link');
-          sublinks.forEach(function(sub) {
-            if (sub.textContent.toLowerCase().indexOf(query) !== -1) {
-              sub.closest('.nav-item').style.display = '';
-              submenuMatch = true;
-            } else {
-              sub.closest('.nav-item').style.display = 'none';
-            }
-          });
-        }
-        
-        if (text.indexOf(query) !== -1 || submenuMatch) {
-          item.style.display = '';
-          if (submenu && query !== '') {
-            var collapseElement = item.querySelector('.collapse');
-            if (collapseElement && !collapseElement.classList.contains('show')) {
-              var bInst = bootstrap.Collapse.getInstance(collapseElement) || new bootstrap.Collapse(collapseElement, {toggle: false});
-              bInst.show();
-            }
-          }
-        } else {
-          item.style.display = 'none';
-        }
-      });
-      
-      sections.forEach(function(section) {
-        var sibling = section.nextElementSibling;
-        var anyVisible = false;
-        while (sibling && !sibling.classList.contains('nav-section')) {
-          if (sibling.classList.contains('nav-item') && sibling.style.display !== 'none') {
-            anyVisible = true;
-            break;
-          }
-          sibling = sibling.nextElementSibling;
-        }
-        section.style.display = anyVisible || query === '' ? '' : 'none';
-      });
-    });
-  }
-})();
-</script>
-      <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var toastElList = [].slice.call(document.querySelectorAll('.toast'));
-        var toastList = toastElList.map(function (toastEl) {
-            return new bootstrap.Toast(toastEl);
-        });
-        toastList.forEach(toast => toast.show());
-    });
-</script>
-
-{% if request.user.is_authenticated %}
-<!-- Interactive Auto Logout Modal -->
-<div class="modal fade" id="autoLogoutModal" tabindex="-1" aria-labelledby="autoLogoutModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow text-center">
-      <div class="modal-header border-0 pb-0 justify-content-center">
-        <h5 class="modal-title fw-bold text-danger" id="autoLogoutModalLabel"><i class="bi bi-exclamation-triangle-fill me-2"></i>Session Expiring Soon</h5>
-      </div>
-      <div class="modal-body py-4">
-        <p class="mb-2 fs-5">You have been inactive for a while.</p>
-        <p class="text-muted mb-4">You will be automatically logged out in</p>
-        <h1 class="display-1 fw-bold text-primary mb-0" id="logoutCountdown">10</h1>
-        <p class="text-muted mt-2">seconds</p>
-      </div>
-      <div class="modal-footer border-0 pt-0 justify-content-center">
-        <button type="button" class="btn btn-primary px-4 py-2 fw-semibold rounded-pill" id="stayLoggedInBtn">Stay Logged In</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<form id="autoLogoutForm" action="{% url 'logout' %}" method="post" class="d-none">
-  {% csrf_token %}
-</form>
-
-<script>
-  let idleTime = 0;
-  let countdownTimer = null;
-  // Trigger exactly 10 seconds before the 15 minute (900 second) server limit
-  const IDLE_LIMIT = 890; 
-  const COUNTDOWN_SECONDS = 10;
-  
-  function resetIdleTimer() {
-      idleTime = 0;
-  }
-  
-  // Track user interaction to determine what is classified as 'Active'
-  window.onload = resetIdleTimer;
-  document.onmousemove = resetIdleTimer;
-  document.onkeypress = resetIdleTimer;
-  document.onscroll = resetIdleTimer;
-  document.onclick = resetIdleTimer;
-  
-  // Increment tracker every second
-  setInterval(function() {
-      idleTime += 1;
-      
-      if (idleTime === IDLE_LIMIT) {
-          // Time to show the warning modal
-          let autoLogoutModal = new bootstrap.Modal(document.getElementById('autoLogoutModal'));
-          autoLogoutModal.show();
-          
-          let timeLeft = COUNTDOWN_SECONDS;
-          document.getElementById('logoutCountdown').innerText = timeLeft;
-          
-          countdownTimer = setInterval(function() {
-              timeLeft -= 1;
-              document.getElementById('logoutCountdown').innerText = timeLeft;
-              
-              if (timeLeft <= 0) {
-                  clearInterval(countdownTimer);
-                  // Securely submit the POST logout to Django from javascript
-                  document.getElementById('autoLogoutForm').submit();
-              }
-          }, 1000);
-      }
-  }, 1000);
-  
-  // Connect Stay Logged In button
-  document.getElementById('stayLoggedInBtn').addEventListener('click', function() {
-      // Ping the server to refresh session silently
-      fetch(window.location.href).then(() => {
-          idleTime = 0;
-          if (countdownTimer) clearInterval(countdownTimer);
-          let modalInstance = bootstrap.Modal.getInstance(document.getElementById('autoLogoutModal'));
-          if (modalInstance) modalInstance.hide();
-      });
-  });
-</script>
-{% endif %}
-  <script>
-    // System dynamic background coloring and element sizing helpers to prevent linter errors
-    (function() {
-      function applyDynamicStyles() {
-        document.querySelectorAll('[data-bg]').forEach(function(el) {
-          if (el.dataset.bg) {
-            el.style.backgroundColor = el.dataset.bg;
-          }
-        });
-        document.querySelectorAll('[data-bg-style]').forEach(function(el) {
-          if (el.dataset.bgStyle) {
-            el.style.background = el.dataset.bgStyle;
-          }
-        });
-        document.querySelectorAll('[data-width]').forEach(function(el) {
-          if (el.dataset.width) {
-            el.style.width = el.dataset.width + '%';
-          }
-        });
-      }
-      // Apply immediately on DOMContentLoaded
-      document.addEventListener('DOMContentLoaded', applyDynamicStyles);
-      // Run immediately in case script loads after DOMContentLoaded
-      applyDynamicStyles();
-    })();
-  </script>
-  <script>
-    // Global phone number auto +91 formatter on blur
-    (function() {
-      function formatPhoneInput(input) {
-        if (!input || !input.value) return;
-        var val = input.value.trim();
-        var cleaned = val.replace(/[\s\-\(\)\.]/g, '');
-        if (/^\d{10}$/.test(cleaned)) {
-          input.value = '+91' + cleaned;
-        } else if (/^0\d{10}$/.test(cleaned)) {
-          input.value = '+91' + cleaned.substring(1);
-        } else if (/^91\d{10}$/.test(cleaned)) {
-          input.value = '+' + cleaned;
-        }
-      }
-
-      document.addEventListener('blur', function(e) {
-        var el = e.target;
-        if (el && el.tagName === 'INPUT') {
-          var name = (el.name || '').toLowerCase();
-          var type = (el.type || '').toLowerCase();
-          if (type === 'tel' || name.indexOf('phone') !== -1) {
-            formatPhoneInput(el);
-          }
-        }
-      }, true);
-    })();
-  </script>
-  {% include '_session_timeout_modal.html' %}
-  </body>
-</html>
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+    <meta name="generator" content="Hugo 0.84.0">
+    <title>{{ system_settings.system_name|default:"Apex Hostel" }} {% block title %}{% endblock %}</title>
+    <!-- Apply saved theme BEFORE CSS loads — prevents flash of wrong theme -->
+    <script>
+      (function() {
+        var t = localStorage.getItem('hms_theme');
+        if (t) document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- Custom CSS applied over Bootstrap 5 -->
+    <link rel="stylesheet" type="text/css" href="{% static 'css/style.css' %}?v=1.3">
+
+
+    <!-- PWA & Mobile Web App Integration -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="{{ system_settings.system_name|default:'Apex Hostel' }}">
+    
+    {% if system_settings.favicon_url %}
+    <link rel="icon" href="{{ system_settings.favicon_url }}">
+    <link rel="shortcut icon" href="{{ system_settings.favicon_url }}">
+    <link rel="apple-touch-icon" href="{{ system_settings.favicon_url }}">
+    {% else %}
+    <link rel="apple-touch-icon" href="/static/image/icon-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/static/image/icon-512x512.png" sizes="512x512">
+    <link rel="icon" href="/static/image/icon-192x192.png" sizes="192x192" type="image/png">
+    {% endif %}
+    <meta name="theme-color" content="{{ system_settings.theme_color|default:'#6366f1' }}">
+    
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(reg => {
+              console.log('Service Worker registered scope:', reg.scope);
+              reg.update();
+            })
+            .catch(err => console.log('Service Worker registering failed:', err));
+        });
+      }
+    </script>
+
+
+    
+    <!-- Custom styles for this template -->
+  </head>
+  <body>
+    
+<header class="navbar navbar-dark sticky-top top-nav flex-md-nowrap p-0 z-3">
+  {% include 'title_nav.html'%}
+</header>
+
+<div class="container-fluid">
+  <div class="d-flex gap-md-3 gap-2" style="align-items: stretch; min-height: calc(100vh - 56px);">
+    {% if not no_sidebar %}
+      {% include 'side_navbar.html'%}
+    {% endif %}
+
+    <main role="main" class="px-md-4 py-3" style="flex: 1 1 0; min-width: 0; overflow-x: hidden;">
+      {% include '_messages.html' %}
+
+      {% block content %}
+      {% endblock %}
+    </main>
+  </div>
+</div>
+
+<!-- Mobile sidebar backdrop overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="{% static 'javaScript/Script.js' %}?v=1.2"></script>
+      <script src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js" integrity="sha384-uO3SXW5IuS1ZpFPKugNNWqTZRRglnUJK6UAZ/gxOX80nxEkN9NcGZTftn6RzhGWE" crossorigin="anonymous"></script><script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js" integrity="sha384-zNy6FEbO50N+Cg5wap8IKA4M/ZnLJgzc6w2NqACZaK0u0FXfOWRRJOnQtpZun8ha" crossorigin="anonymous"></script>
+
+<script>
+/* ---- Global Bootstrap Modal Teleport & Stacking Context Fix ---- */
+document.addEventListener('show.bs.modal', function (event) {
+  var modal = event.target;
+  if (modal && modal.parentElement !== document.body) {
+    document.body.appendChild(modal);
+  }
+});
+
+/* ---- Premium Navigation & Sidebar Features ---- */
+(function() {
+  var btn       = document.getElementById('sidebarToggleBtn');
+  var sidebar   = document.querySelector('.sidebar-wrapper');
+  var overlay   = document.getElementById('sidebarOverlay');
+  if (!btn || !sidebar) return;
+
+  var isMobile  = function() { return window.innerWidth < 768; };
+  var STORE_KEY = 'hms_sidebar_collapsed';
+
+  // Restore desktop state from localStorage
+  if (!isMobile() && localStorage.getItem(STORE_KEY) === '1') {
+    sidebar.classList.add('sidebar-collapsed');
+  }
+
+  btn.addEventListener('click', function() {
+    if (isMobile()) {
+      var open = sidebar.classList.toggle('sidebar-mobile-open');
+      if (overlay) overlay.classList.toggle('active', open);
+    } else {
+      var collapsed = sidebar.classList.toggle('sidebar-collapsed');
+      localStorage.setItem(STORE_KEY, collapsed ? '1' : '0');
+    }
+  });
+
+  if (overlay) {
+    overlay.addEventListener('click', function() {
+      sidebar.classList.remove('sidebar-mobile-open');
+      overlay.classList.remove('active');
+    });
+  }
+
+  window.addEventListener('resize', function() {
+    if (!isMobile()) {
+      sidebar.classList.remove('sidebar-mobile-open');
+      if (overlay) overlay.classList.remove('active');
+    } else {
+      sidebar.classList.remove('sidebar-collapsed');
+    }
+  });
+})();
+
+/* ---- Dynamic Breadcrumb Parser ---- */
+(function() {
+  var breadcrumbContainer = document.getElementById('dynamicBreadcrumbSelector');
+  if (breadcrumbContainer) {
+    var paths = window.location.pathname.split('/').filter(function(p) { return p; });
+    var html = '<li class="breadcrumb-item"><a href="/" class="text-muted text-decoration-none"><i class="bi bi-house-door-fill me-1"></i>Home</a></li>';
+    var currentPath = '';
+    paths.forEach(function(part, index) {
+      currentPath += '/' + part;
+      var displayName = part.replace(/[-_]/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+      if (!isNaN(part)) {
+        displayName = '#' + part;
+      }
+      if (index === paths.length - 1) {
+        html += '<li class="breadcrumb-item active text-primary fw-semibold" aria-current="page">' + displayName + '</li>';
+      } else {
+        html += '<li class="breadcrumb-item"><a href="' + currentPath + '" class="text-muted text-decoration-none">' + displayName + '</a></li>';
+      }
+    });
+    breadcrumbContainer.innerHTML = html;
+  }
+})();
+
+/* ---- Fullscreen Trigger ---- */
+(function() {
+  var fsBtn = document.getElementById('fullscreenToggleBtn');
+  var fsIcon = document.getElementById('fsIcon');
+  if (fsBtn && fsIcon) {
+    fsBtn.addEventListener('click', function() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(function() {
+          fsIcon.className = 'bi bi-fullscreen-exit';
+        }).catch(function(err) {
+          console.error('Error enabling fullscreen:', err);
+        });
+      } else {
+        document.exitFullscreen().then(function() {
+          fsIcon.className = 'bi bi-fullscreen';
+        });
+      }
+    });
+  }
+})();
+
+/* ---- Ctrl + K Global Search Focus Trigger ---- */
+document.addEventListener('keydown', function(event) {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+    var gSearch = document.getElementById('globalSearchInput');
+    if (gSearch) {
+      event.preventDefault();
+      gSearch.focus();
+    }
+  }
+  if (event.key === 'Escape') {
+    var gSearch = document.getElementById('globalSearchInput');
+    if (gSearch) {
+      gSearch.blur();
+    }
+  }
+});
+
+/* ---- Global Page Search Filter ---- */
+(function() {
+  var globalSearch = document.getElementById('globalSearchInput');
+  if (globalSearch) {
+    globalSearch.addEventListener('input', function() {
+      var query = this.value.toLowerCase().trim();
+      
+      // 1. Filter dashboard shortcut cards
+      var shortcuts = document.querySelectorAll('.shortcut-card');
+      shortcuts.forEach(function(card) {
+        var text = card.textContent.toLowerCase();
+        var col = card.closest('.col-6, .col-md-4, .col-lg-3');
+        if (text.indexOf(query) !== -1 || query === '') {
+          if (col) col.style.setProperty('display', '', 'important');
+        } else {
+          if (col) col.style.setProperty('display', 'none', 'important');
+        }
+      });
+      
+      // 2. Filter key-performance indicators (KPI cards)
+      var kpis = document.querySelectorAll('.kpi-card');
+      kpis.forEach(function(card) {
+        if (!card.classList.contains('shortcut-card') && !card.closest('.shortcut-card')) {
+          var text = card.textContent.toLowerCase();
+          var col = card.closest('.col-6, .col-md-4, .col-xl-2, .col-md-3, .col-6.col-md-3');
+          if (text.indexOf(query) !== -1 || query === '') {
+            if (col) col.style.setProperty('display', '', 'important');
+          } else {
+            if (col) col.style.setProperty('display', 'none', 'important');
+          }
+        }
+      });
+      
+      // 3. Filter table rows
+      var rows = document.querySelectorAll('.sa-table tbody tr, .table tbody tr');
+      rows.forEach(function(row) {
+        var text = row.textContent.toLowerCase();
+        if (text.indexOf(query) !== -1 || query === '') {
+          row.style.setProperty('display', '', 'important');
+        } else {
+          row.style.setProperty('display', 'none', 'important');
+        }
+      });
+      
+      // 4. Filter health rows
+      var healthRows = document.querySelectorAll('.health-row');
+      healthRows.forEach(function(row) {
+        var text = row.textContent.toLowerCase();
+        if (text.indexOf(query) !== -1 || query === '') {
+          row.style.setProperty('display', '', 'important');
+        } else {
+          row.style.setProperty('display', 'none', 'important');
+        }
+      });
+      
+      // 5. Hide panel-cards if empty in inner content
+      var panels = document.querySelectorAll('.panel-card');
+      panels.forEach(function(panel) {
+        if (query === '') {
+          panel.style.setProperty('display', '', 'important');
+          return;
+        }
+        var table = panel.querySelector('table');
+        var healthRowsList = panel.querySelectorAll('.health-row');
+        var anyVisible = false;
+        
+        if (table) {
+          var visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+          if (visibleRows.length > 0) anyVisible = true;
+        } else if (healthRowsList.length > 0) {
+          var visibleHealth = panel.querySelectorAll('.health-row:not([style*="display: none"])');
+          if (visibleHealth.length > 0) anyVisible = true;
+        } else {
+          var pText = panel.textContent.toLowerCase();
+          if (pText.indexOf(query) !== -1) anyVisible = true;
+        }
+        
+        if (anyVisible) {
+          panel.style.setProperty('display', '', 'important');
+        } else {
+          panel.style.setProperty('display', 'none', 'important');
+        }
+      });
+    });
+  }
+})();
+
+/* ---- Theme Direct Toggle Handler ---- */
+window.themeToggleHandler = function() {
+  var THEME_KEY = 'hms_theme';
+  var current = localStorage.getItem(THEME_KEY) || 'dark';
+  var target = (current === 'dark') ? 'light' : 'dark';
+  if (typeof window.applyThemeMode === 'function') {
+    window.applyThemeMode(target);
+  }
+};
+
+/* ---- Sidebar Menu Search Filter ---- */
+(SidebarMenuSearch = function() {
+  var searchInput = document.getElementById('sidebarSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      var query = this.value.toLowerCase().trim();
+      var sections = document.querySelectorAll('.sidebar-pro .nav-section');
+      var items = document.querySelectorAll('.sidebar-pro .nav-item');
+      
+      items.forEach(function(item) {
+        var link = item.querySelector('.nav-link');
+        var text = link ? link.textContent.toLowerCase() : '';
+        var submenu = item.querySelector('.collapse-submenu-list');
+        var submenuMatch = false;
+        
+        if (submenu) {
+          var sublinks = submenu.querySelectorAll('.nav-link');
+          sublinks.forEach(function(sub) {
+            if (sub.textContent.toLowerCase().indexOf(query) !== -1) {
+              sub.closest('.nav-item').style.display = '';
+              submenuMatch = true;
+            } else {
+              sub.closest('.nav-item').style.display = 'none';
+            }
+          });
+        }
+        
+        if (text.indexOf(query) !== -1 || submenuMatch) {
+          item.style.display = '';
+          if (submenu && query !== '') {
+            var collapseElement = item.querySelector('.collapse');
+            if (collapseElement && !collapseElement.classList.contains('show')) {
+              var bInst = bootstrap.Collapse.getInstance(collapseElement) || new bootstrap.Collapse(collapseElement, {toggle: false});
+              bInst.show();
+            }
+          }
+        } else {
+          item.style.display = 'none';
+        }
+      });
+      
+      sections.forEach(function(section) {
+        var sibling = section.nextElementSibling;
+        var anyVisible = false;
+        while (sibling && !sibling.classList.contains('nav-section')) {
+          if (sibling.classList.contains('nav-item') && sibling.style.display !== 'none') {
+            anyVisible = true;
+            break;
+          }
+          sibling = sibling.nextElementSibling;
+        }
+        section.style.display = anyVisible || query === '' ? '' : 'none';
+      });
+    });
+  }
+})();
+</script>
+      <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var toastElList = [].slice.call(document.querySelectorAll('.toast'));
+        var toastList = toastElList.map(function (toastEl) {
+            return new bootstrap.Toast(toastEl);
+        });
+        toastList.forEach(toast => toast.show());
+    });
+</script>
+
+{% if request.user.is_authenticated %}
+<!-- Interactive Auto Logout Modal -->
+<div class="modal fade" id="autoLogoutModal" tabindex="-1" aria-labelledby="autoLogoutModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow text-center">
+      <div class="modal-header border-0 pb-0 justify-content-center">
+        <h5 class="modal-title fw-bold text-danger" id="autoLogoutModalLabel"><i class="bi bi-exclamation-triangle-fill me-2"></i>Session Expiring Soon</h5>
+      </div>
+      <div class="modal-body py-4">
+        <p class="mb-2 fs-5">You have been inactive for a while.</p>
+        <p class="text-muted mb-4">You will be automatically logged out in</p>
+        <h1 class="display-1 fw-bold text-primary mb-0" id="logoutCountdown">10</h1>
+        <p class="text-muted mt-2">seconds</p>
+      </div>
+      <div class="modal-footer border-0 pt-0 justify-content-center">
+        <button type="button" class="btn btn-primary px-4 py-2 fw-semibold rounded-pill" id="stayLoggedInBtn">Stay Logged In</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form id="autoLogoutForm" action="{% url 'logout' %}" method="post" class="d-none">
+  {% csrf_token %}
+</form>
+
+<script>
+  let idleTime = 0;
+  let countdownTimer = null;
+  // Trigger exactly 10 seconds before the 15 minute (900 second) server limit
+  const IDLE_LIMIT = 890; 
+  const COUNTDOWN_SECONDS = 10;
+  
+  function resetIdleTimer() {
+      idleTime = 0;
+  }
+  
+  // Track user interaction to determine what is classified as 'Active'
+  window.onload = resetIdleTimer;
+  document.onmousemove = resetIdleTimer;
+  document.onkeypress = resetIdleTimer;
+  document.onscroll = resetIdleTimer;
+  document.onclick = resetIdleTimer;
+  
+  // Increment tracker every second
+  setInterval(function() {
+      idleTime += 1;
+      
+      if (idleTime === IDLE_LIMIT) {
+          // Time to show the warning modal
+          let autoLogoutModal = new bootstrap.Modal(document.getElementById('autoLogoutModal'));
+          autoLogoutModal.show();
+          
+          let timeLeft = COUNTDOWN_SECONDS;
+          document.getElementById('logoutCountdown').innerText = timeLeft;
+          
+          countdownTimer = setInterval(function() {
+              timeLeft -= 1;
+              document.getElementById('logoutCountdown').innerText = timeLeft;
+              
+              if (timeLeft <= 0) {
+                  clearInterval(countdownTimer);
+                  // Securely submit the POST logout to Django from javascript
+                  document.getElementById('autoLogoutForm').submit();
+              }
+          }, 1000);
+      }
+  }, 1000);
+  
+  // Connect Stay Logged In button
+  document.getElementById('stayLoggedInBtn').addEventListener('click', function() {
+      // Ping the server to refresh session silently
+      fetch(window.location.href).then(() => {
+          idleTime = 0;
+          if (countdownTimer) clearInterval(countdownTimer);
+          let modalInstance = bootstrap.Modal.getInstance(document.getElementById('autoLogoutModal'));
+          if (modalInstance) modalInstance.hide();
+      });
+  });
+</script>
+{% endif %}
+  <script>
+    // System dynamic background coloring and element sizing helpers to prevent linter errors
+    (function() {
+      function applyDynamicStyles() {
+        document.querySelectorAll('[data-bg]').forEach(function(el) {
+          if (el.dataset.bg) {
+            el.style.backgroundColor = el.dataset.bg;
+          }
+        });
+        document.querySelectorAll('[data-bg-style]').forEach(function(el) {
+          if (el.dataset.bgStyle) {
+            el.style.background = el.dataset.bgStyle;
+          }
+        });
+        document.querySelectorAll('[data-width]').forEach(function(el) {
+          if (el.dataset.width) {
+            el.style.width = el.dataset.width + '%';
+          }
+        });
+      }
+      // Apply immediately on DOMContentLoaded
+      document.addEventListener('DOMContentLoaded', applyDynamicStyles);
+      // Run immediately in case script loads after DOMContentLoaded
+      applyDynamicStyles();
+    })();
+  </script>
+  <script>
+    // Global phone number auto +91 formatter on blur
+    (function() {
+      function formatPhoneInput(input) {
+        if (!input || !input.value) return;
+        var val = input.value.trim();
+        var cleaned = val.replace(/[\s\-\(\)\.]/g, '');
+        if (/^\d{10}$/.test(cleaned)) {
+          input.value = '+91' + cleaned;
+        } else if (/^0\d{10}$/.test(cleaned)) {
+          input.value = '+91' + cleaned.substring(1);
+        } else if (/^91\d{10}$/.test(cleaned)) {
+          input.value = '+' + cleaned;
+        }
+      }
+
+      document.addEventListener('blur', function(e) {
+        var el = e.target;
+        if (el && el.tagName === 'INPUT') {
+          var name = (el.name || '').toLowerCase();
+          var type = (el.type || '').toLowerCase();
+          if (type === 'tel' || name.indexOf('phone') !== -1) {
+            formatPhoneInput(el);
+          }
+        }
+      }, true);
+    })();
+  </script>
+  {% include '_session_timeout_modal.html' %}
+  </body>
+</html>

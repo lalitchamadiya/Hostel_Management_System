@@ -1,99 +1,110 @@
-{% extends 'base_auth.html'%}
-{% load static %}
-
-{% block content %}
-
-<nav class="navbar top-nav sticky-top">
-    <div class="container-fluid justify-content-between align-items-center py-2 px-4">
-        <h4 class="navbar-brand mb-0">Hostel Management System</h4>
-        <button id="themeToggleBtn" class="btn btn-sm theme-toggle-btn" type="button" title="Toggle Theme" aria-label="Toggle Light/Dark Theme">
-          <i class="bi bi-moon-fill" id="themeIcon"></i>
-        </button>
-    </div>
-</nav>
-
-<div class="container d-flex justify-content-center align-items-center py-5" style="min-height: calc(100vh - 80px);">
-    <div class="pro-card shadow-lg" style="max-width: 900px; width: 100%; overflow: hidden;">
-        <div class="row g-0">
-            <!-- Image Side -->
-            <div class="col-md-5 d-none d-md-block" style="background: url('/static/image/6343825.jpg') center center/cover no-repeat; min-height: 550px;">
-                <div class="h-100 w-100" style="background: rgba(37, 99, 235, 0.1);"></div>
-            </div>
-            
-            <!-- Register Form Side -->
-            <div class="col-md-7 d-flex flex-column justify-content-center p-5">
-                <div class="text-center mb-4">
-                    <div class="d-inline-flex justify-content-center align-items-center bg-primary text-white rounded-circle mb-3 shadow" style="width: 60px; height: 60px;">
-                        <span class="material-symbols-outlined" style="font-size: 32px;">person_add</span>
-                    </div>
-                    <h3 class="fw-bold">Create Account</h3>
-                    <p class="text-muted small">Register to secure your portal access</p>
-                </div>
-                
-                <form action="{% url 'register' %}" method="post">
-                    {% csrf_token %}
-                    
-                    <div class="row g-3">
-                        <div class="col-md-12 position-relative">
-                            <label class="form-label small fw-bold text-muted px-1 mb-1">Username</label>
-                            <div class="input-group drop-shadow-sm">
-                                <span class="input-group-text border-end-0 text-primary py-2">
-                                    <span class="material-symbols-outlined fs-5">person</span>
-                                </span>
-                                <input type="text" name="username" placeholder="Choose a username" id="usernameField" value="{{fieldValues.username}}" class="form-control border-start-0 ps-0 py-2" autocomplete="username" required>
-                            </div>
-                            <div class="invalid-feedback mt-0" style="display: none;"></div>
-                        </div>
-                        
-                        <div class="col-md-12 position-relative">
-                            <label class="form-label small fw-bold text-muted px-1 mb-1">Email Address</label>
-                            <div class="input-group drop-shadow-sm">
-                                <span class="input-group-text border-end-0 text-primary py-2">
-                                    <span class="material-symbols-outlined fs-5">email</span>
-                                </span>
-                                <input type="email" name="email" placeholder="name@example.com" id="emailField" value="{{fieldValues.email}}" class="form-control border-start-0 ps-0 py-2" autocomplete="email" required>
-                            </div>
-                            <div class="emailFeedBackArea invalid-feedback mt-0" style="display: none;"></div>
-                        </div>
- 
-                        <div class="col-md-12 position-relative">
-                            <label class="form-label small fw-bold text-muted px-1 mb-1">Password</label>
-                            <div class="input-group drop-shadow-sm">
-                                <span class="input-group-text border-end-0 text-primary py-2">
-                                    <span class="material-symbols-outlined fs-5">key</span>
-                                </span>
-                                <input type="password" name="password" placeholder="Create robust password" id="passwordField" class="form-control border-start-0 ps-0 py-2" autocomplete="new-password" required>
-                            </div>
-                            <div class="text-end pt-1">
-                                <small class="text-primary fw-bold showPasswordToggle text-decoration-underline" style="cursor: pointer;">Show Password</small>
-                            </div>
-                        </div>
-
-                        <div class="col-md-12 position-relative pt-2">
-                            <label class="form-label small fw-bold text-muted px-1 mb-1">Account Role</label>
-                            <select name="role" class="form-select form-control py-2 shadow-none" required>
-                                <option value="" class="text-muted">Select Role Definition...</option>
-                                {% for role in roles %}
-                                <option value="{{ role.id }}">{{ role.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="d-grid mt-4 pt-2">
-                        <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow fs-6 py-2 fw-bold">Register Account</button>
-                    </div>
-                    
-                    <div class="text-center mt-4">
-                        <span class="text-muted small">Already have an account? </span>
-                        <a href="{% url 'login' %}" class="text-primary fw-bold text-decoration-none small">Back To Login</a>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="{% static 'javaScript/register.js' %}"></script>
-
+{% extends 'base_auth.html'%}
+{% load static %}
+
+{% block content %}
+
+<nav class="navbar top-nav sticky-top">
+    <div class="container-fluid justify-content-between align-items-center py-2 px-4">
+        <a class="navbar-brand mb-0 d-flex align-items-center gap-2 text-decoration-none" href="#">
+            {% if system_settings.logo_url %}
+            <img src="{{ system_settings.logo_url }}" alt="Logo" style="height: 32px; max-width: 44px; object-fit: contain;" class="rounded">
+            {% endif %}
+            <span class="fw-bold" style="color: var(--text-main, inherit);">{{ system_settings.system_name|default:"Hostel Management System" }}</span>
+        </a>
+        <button id="themeToggleBtn" class="btn btn-sm theme-toggle-btn" type="button" title="Toggle Theme" aria-label="Toggle Light/Dark Theme">
+          <i class="bi bi-moon-fill" id="themeIcon"></i>
+        </button>
+    </div>
+</nav>
+
+<div class="container d-flex justify-content-center align-items-center py-5" style="min-height: calc(100vh - 80px);">
+    <div class="pro-card shadow-lg" style="max-width: 900px; width: 100%; overflow: hidden;">
+        <div class="row g-0">
+            <!-- Image Side -->
+            <div class="col-md-5 d-none d-md-block" style="background: url('/static/image/6343825.jpg') center center/cover no-repeat; min-height: 550px;">
+                <div class="h-100 w-100" style="background: rgba(37, 99, 235, 0.1);"></div>
+            </div>
+            
+            <!-- Register Form Side -->
+            <div class="col-md-7 d-flex flex-column justify-content-center p-5">
+                <div class="text-center mb-4">
+                    {% if system_settings.logo_url %}
+                    <div class="d-inline-flex justify-content-center align-items-center mb-3">
+                        <img src="{{ system_settings.logo_url }}" alt="{{ system_settings.system_name|default:'Logo' }}" style="max-height: 56px; max-width: 140px; object-fit: contain;" class="rounded">
+                    </div>
+                    {% else %}
+                    <div class="d-inline-flex justify-content-center align-items-center bg-primary text-white rounded-circle mb-3 shadow" style="width: 60px; height: 60px;">
+                        <span class="material-symbols-outlined" style="font-size: 32px;">person_add</span>
+                    </div>
+                    {% endif %}
+                    <h3 class="fw-bold">Create Account</h3>
+                    <p class="text-muted small">Register to secure your {{ system_settings.system_name|default:"portal" }} access</p>
+                </div>
+                
+                <form action="{% url 'register' %}" method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row g-3">
+                        <div class="col-md-12 position-relative">
+                            <label class="form-label small fw-bold text-muted px-1 mb-1">Username</label>
+                            <div class="input-group drop-shadow-sm">
+                                <span class="input-group-text border-end-0 text-primary py-2">
+                                    <span class="material-symbols-outlined fs-5">person</span>
+                                </span>
+                                <input type="text" name="username" placeholder="Choose a username" id="usernameField" value="{{fieldValues.username}}" class="form-control border-start-0 ps-0 py-2" autocomplete="username" required>
+                            </div>
+                            <div class="invalid-feedback mt-0" style="display: none;"></div>
+                        </div>
+                        
+                        <div class="col-md-12 position-relative">
+                            <label class="form-label small fw-bold text-muted px-1 mb-1">Email Address</label>
+                            <div class="input-group drop-shadow-sm">
+                                <span class="input-group-text border-end-0 text-primary py-2">
+                                    <span class="material-symbols-outlined fs-5">email</span>
+                                </span>
+                                <input type="email" name="email" placeholder="name@example.com" id="emailField" value="{{fieldValues.email}}" class="form-control border-start-0 ps-0 py-2" autocomplete="email" required>
+                            </div>
+                            <div class="emailFeedBackArea invalid-feedback mt-0" style="display: none;"></div>
+                        </div>
+ 
+                        <div class="col-md-12 position-relative">
+                            <label class="form-label small fw-bold text-muted px-1 mb-1">Password</label>
+                            <div class="input-group drop-shadow-sm">
+                                <span class="input-group-text border-end-0 text-primary py-2">
+                                    <span class="material-symbols-outlined fs-5">key</span>
+                                </span>
+                                <input type="password" name="password" placeholder="Create robust password" id="passwordField" class="form-control border-start-0 ps-0 py-2" autocomplete="new-password" required>
+                            </div>
+                            <div class="text-end pt-1">
+                                <small class="text-primary fw-bold showPasswordToggle text-decoration-underline" style="cursor: pointer;">Show Password</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-12 position-relative pt-2">
+                            <label class="form-label small fw-bold text-muted px-1 mb-1">Account Role</label>
+                            <select name="role" class="form-select form-control py-2 shadow-none" required>
+                                <option value="" class="text-muted">Select Role Definition...</option>
+                                {% for role in roles %}
+                                <option value="{{ role.id }}">{{ role.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid mt-4 pt-2">
+                        <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow fs-6 py-2 fw-bold">Register Account</button>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <span class="text-muted small">Already have an account? </span>
+                        <a href="{% url 'login' %}" class="text-primary fw-bold text-decoration-none small">Back To Login</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'javaScript/register.js' %}"></script>
+
 {% endblock %}

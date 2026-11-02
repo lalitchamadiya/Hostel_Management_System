@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Fee Transaction History - HMS{% endblock %}
+{% block title %} | Fee Transaction History{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-3 px-3 px-md-4">
@@ -173,7 +173,7 @@
                                         </div>
                                         <div class="modal-body p-4">
                                             <div class="text-center pb-3 border-bottom mb-3">
-                                                <h5 class="fw-bold mb-0 text-dark">Apex Hostel Management</h5>
+                                                <h5 class="fw-bold mb-0 text-dark">{{ system_settings.system_name|default:"Apex Hostel" }}</h5>
                                                 <div class="text-muted small">Official Student Fee Payment Receipt</div>
                                             </div>
                                             <div class="row g-2 mb-3">

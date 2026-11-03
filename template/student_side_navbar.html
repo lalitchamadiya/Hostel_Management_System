@@ -1,89 +1,166 @@
-{% load static %}
-
-{% block content %}
-<div class="col-md-3 col-lg-2 d-md-block p-0 sidebar-wrapper collapse">
-    <nav id="sidebarMenu" class="sidebar-pro">
-        
-        <!-- Premium Brand Header -->
-        <div class="sidebar-brand px-4 py-3 mb-2 d-flex align-items-center">
-            {% if system_settings.logo_url %}
-            <div class="brand-icon me-3 rounded-2 d-flex align-items-center justify-content-center shadow-sm overflow-hidden" style="width:34px; height:34px; min-width:34px; background: transparent;">
-                <img src="{{ system_settings.logo_url }}" alt="{{ system_settings.system_name|default:'Logo' }}" style="max-width:100%; max-height:100%; object-fit:contain; border-radius: 4px;">
-            </div>
-            {% else %}
-            <div class="brand-icon me-3 rounded-2 bg-gradient-primary d-flex align-items-center justify-content-center" style="width:34px; height:34px; min-width:34px;">
-                <span class="material-symbols-outlined text-white fs-5">school</span>
-            </div>
-            {% endif %}
-            <div class="d-flex flex-column overflow-hidden">
-                <span class="fs-6 fw-bold text-white lh-1 tracking-tight text-truncate" title="{{ system_settings.system_name|default:'HMS Student' }}">{{ system_settings.system_name|default:"HMS" }}</span>
-                <span class="text-white opacity-50" style="font-size: 0.65rem;">Personal Portal</span>
-            </div>
-        </div>
-
-        <ul class="nav flex-column mb-auto">
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}" href="{% url 'student_app:student_dashboard' %}">
-                    <span class="material-symbols-outlined">person_pin</span>
-                    My Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'student_gate_pass' or request.resolver_match.url_name == 'view_active_pass' %}active{% endif %}" href="{% url 'student_app:student_gate_pass' %}">
-                    <span class="material-symbols-outlined">qr_code</span>
-                    Gate Pass
-                </a>
-            </li>
-            <li class="nav-section mt-1">
-                <span class="section-title">My Account</span>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'student_profile' %}active{% endif %}" href="{% url 'student_app:student_profile' %}">
-                    <span class="material-symbols-outlined">badge</span>
-                    Profile
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'student_app:change_password' %}">
-                    <span class="material-symbols-outlined">passkey</span>
-                    Security
-                </a>
-            </li>
-            
-            <li class="nav-section">
-                <span class="section-title">Hostel Life</span>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'student_app:food_schedule' %}">
-                    <span class="material-symbols-outlined">restaurant_menu</span>
-                    Food Schedule
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'student_app:student_leave_request' %}">
-                    <span class="material-symbols-outlined">edit_calendar</span>
-                    Request Leave
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'student_app:student_leave_details' %}">
-                    <span class="material-symbols-outlined">history</span>
-                    Leave History
-                </a>
-            </li>
-        </ul>
-        
-        <!-- Bottom Role Badge -->
-        <div class="user-role-card mb-4">
-            <div class="user-role-icon shadow-sm border border-success border-opacity-25">
-                <span class="material-symbols-outlined text-success fs-5">verified_user</span>
-            </div>
-            <div class="d-flex flex-column">
-                <span class="fw-bold text-white fs-6 lh-1">Resident</span>
-                <span class="text-white opacity-50" style="font-size: 0.65rem;">Secure Access</span>
-            </div>
-        </div>
-        
-    </nav>
-</div>
+{% load static %}
+
+
+
+{% block content %}
+
+<div class="col-md-3 col-lg-2 d-md-block p-0 sidebar-wrapper collapse">
+
+    <nav id="sidebarMenu" class="sidebar-pro">
+
+        
+
+        <!-- Premium Brand Header -->
+        <div class="sidebar-brand px-4 py-3 mb-2 d-flex align-items-center">
+            {% if system_settings.favicon_url %}
+            <div class="brand-icon me-3 rounded-2 d-flex align-items-center justify-content-center shadow-sm" style="width: 36px; height: 36px; min-width: 36px; padding: 2px;">
+                <img src="{{ system_settings.favicon_url }}" alt="{{ system_settings.system_name|default:'Favicon' }}" class="sidebar-favicon-img" style="width: 100%; height: 100%; object-fit: contain; border-radius: 4px;">
+            </div>
+            {% elif system_settings.logo_url %}
+            <div class="brand-icon me-3 rounded-2 d-flex align-items-center justify-content-center shadow-sm" style="width: 36px; height: 36px; min-width: 36px; padding: 2px;">
+                <img src="{{ system_settings.logo_url }}" alt="{{ system_settings.system_name|default:'Logo' }}" class="sidebar-favicon-img" style="width: 100%; height: 100%; object-fit: contain; border-radius: 4px;">
+            </div>
+            {% else %}
+            <div class="brand-icon me-3 rounded-2 bg-gradient-primary d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; min-width: 36px;">
+                <span class="material-symbols-outlined text-white fs-5">school</span>
+            </div>
+            {% endif %}
+            <div class="d-flex flex-column overflow-hidden">
+                <span class="fs-6 fw-bold lh-1 tracking-tight text-truncate sidebar-student-brand-title" title="{{ system_settings.system_name|default:'HMS Student' }}">{{ system_settings.system_name|default:"HMS" }}</span>
+                <span class="sidebar-student-brand-sub" style="font-size: 0.65rem;">Personal Portal</span>
+            </div>
+        </div>
+
+
+
+        <ul class="nav flex-column mb-auto">
+
+            <li class="nav-item">
+
+                <a class="nav-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}" href="{% url 'student_app:student_dashboard' %}">
+
+                    <span class="material-symbols-outlined">person_pin</span>
+
+                    My Dashboard
+
+                </a>
+
+            </li>
+
+            <li class="nav-item">
+
+                <a class="nav-link {% if request.resolver_match.url_name == 'student_gate_pass' or request.resolver_match.url_name == 'view_active_pass' %}active{% endif %}" href="{% url 'student_app:student_gate_pass' %}">
+
+                    <span class="material-symbols-outlined">qr_code</span>
+
+                    Gate Pass
+
+                </a>
+
+            </li>
+
+            <li class="nav-section mt-1">
+
+                <span class="section-title">My Account</span>
+
+            </li>
+
+            <li class="nav-item">
+
+                <a class="nav-link {% if request.resolver_match.url_name == 'student_profile' %}active{% endif %}" href="{% url 'student_app:student_profile' %}">
+
+                    <span class="material-symbols-outlined">badge</span>
+
+                    Profile
+
+                </a>
+
+            </li>
+
+            <li class="nav-item">
+
+                <a class="nav-link" href="{% url 'student_app:change_password' %}">
+
+                    <span class="material-symbols-outlined">passkey</span>
+
+                    Security
+
+                </a>
+
+            </li>
+
+            
+
+            <li class="nav-section">
+
+                <span class="section-title">Hostel Life</span>
+
+            </li>
+
+            <li class="nav-item">
+
+                <a class="nav-link" href="{% url 'student_app:food_schedule' %}">
+
+                    <span class="material-symbols-outlined">restaurant_menu</span>
+
+                    Food Schedule
+
+                </a>
+
+            </li>
+
+            <li class="nav-item">
+
+                <a class="nav-link" href="{% url 'student_app:student_leave_request' %}">
+
+                    <span class="material-symbols-outlined">edit_calendar</span>
+
+                    Request Leave
+
+                </a>
+
+            </li>
+
+            <li class="nav-item">
+
+                <a class="nav-link" href="{% url 'student_app:student_leave_details' %}">
+
+                    <span class="material-symbols-outlined">history</span>
+
+                    Leave History
+
+                </a>
+
+            </li>
+
+        </ul>
+
+        
+
+        <!-- Bottom Role Badge -->
+
+        <div class="user-role-card mb-4">
+
+            <div class="user-role-icon shadow-sm border border-success border-opacity-25">
+
+                <span class="material-symbols-outlined text-success fs-5">verified_user</span>
+
+            </div>
+
+            <div class="d-flex flex-column">
+
+                <span class="fw-bold text-white fs-6 lh-1">Resident</span>
+
+                <span class="text-white opacity-50" style="font-size: 0.65rem;">Secure Access</span>
+
+            </div>
+
+        </div>
+
+        
+
+    </nav>
+
+</div>
+
 {% endblock %}

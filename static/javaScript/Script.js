@@ -1,10 +1,11 @@
 /* =========================================================
-   HMS — Centralized Theme Management System
+   HMS – Centralized Theme Management System
    Handles Theme Color, Light/Dark/System Toggle, Anti-Flash,
-   Live In-Memory Variable Updates, and Persistence
+   Live In-Memory Variable Updates, Debounce Guard, and Persistence
    ========================================================= */
 (function () {
   var THEME_KEY = 'hms_theme';
+  var lastToggleTime = 0;
 
   function getSystemTheme() {
     return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
@@ -65,20 +66,31 @@
     if (theme === 'system') {
       actualTheme = getSystemTheme();
     }
+    if (actualTheme !== 'dark' && actualTheme !== 'light') {
+      actualTheme = 'light';
+    }
 
     document.documentElement.setAttribute('data-theme', actualTheme);
-    localStorage.setItem(THEME_KEY, theme);
+    try {
+      localStorage.setItem(THEME_KEY, actualTheme);
+    } catch (e) {}
 
-    // Sync all theme icons (moon/sun/laptop)
+    // Sync all theme icons (Sun shows in dark mode to switch to light; Moon in light mode to switch to dark)
     var icons = document.querySelectorAll('#themeIcon, .theme-icon');
     icons.forEach(function(icon) {
       if (actualTheme === 'dark') {
-        icon.className = 'bi bi-moon-fill text-primary';
-      } else if (actualTheme === 'light') {
         icon.className = 'bi bi-sun-fill text-warning';
       } else {
-        icon.className = 'bi bi-laptop text-info';
+        icon.className = 'bi bi-moon-fill text-primary';
       }
+    });
+
+    // Sync all theme toggle button titles / accessibility attributes
+    var buttons = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+    buttons.forEach(function(btn) {
+      var titleText = actualTheme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+      btn.setAttribute('title', titleText);
+      btn.setAttribute('aria-label', titleText);
     });
 
     // Sync all theme labels
@@ -93,12 +105,28 @@
     } catch (e) {}
   };
 
-  // Direct toggle between dark and light
-  window.themeToggleHandler = function() {
-    var current = document.documentElement.getAttribute('data-theme') || localStorage.getItem(THEME_KEY) || window.HMS_SERVER_DEFAULT_THEME || 'dark';
+  // Direct toggle between dark and light with 300ms debounce guard
+  window.themeToggleHandler = function(e) {
+    if (e) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+    }
+    var now = Date.now();
+    if (now - lastToggleTime < 300) return;
+    lastToggleTime = now;
+
+    var current = document.documentElement.getAttribute('data-theme') || localStorage.getItem(THEME_KEY) || window.HMS_SERVER_DEFAULT_THEME || 'light';
     var target = (current === 'dark') ? 'light' : 'dark';
     window.applyThemeMode(target);
   };
+
+  // Global event delegation for theme toggle buttons
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('#themeToggleBtn, .theme-toggle-btn');
+    if (btn) {
+      window.themeToggleHandler(e);
+    }
+  });
 
   // Listen for system preference changes
   if (window.matchMedia) {
@@ -110,22 +138,16 @@
   }
 
   // Initial setup: resolve stored preference or system default
-  var defaultTheme = window.HMS_SERVER_DEFAULT_THEME || 'dark';
+  var defaultTheme = window.HMS_SERVER_DEFAULT_THEME || 'light';
   var initialTheme = localStorage.getItem(THEME_KEY) || defaultTheme;
   window.applyThemeMode(initialTheme);
 
-  // Bind click handlers to all theme toggle buttons across the DOM
+  // Re-verify on DOM ready
   document.addEventListener('DOMContentLoaded', function () {
-    window.applyThemeMode(localStorage.getItem(THEME_KEY) || defaultTheme);
-
-    var toggleButtons = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
-    toggleButtons.forEach(function(btn) {
-      btn.removeEventListener('click', window.themeToggleHandler);
-      btn.addEventListener('click', window.themeToggleHandler);
-    });
+    var stored = localStorage.getItem(THEME_KEY) || window.HMS_SERVER_DEFAULT_THEME || 'light';
+    window.applyThemeMode(stored);
   });
 })();
-
 
 /* =========================================================
    HMS — AJAX Polling Engine with Exponential Backoff

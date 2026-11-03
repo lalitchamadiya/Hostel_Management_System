@@ -614,20 +614,20 @@ html[data-theme="light"] .sidebar-pro .nav-link .material-symbols-outlined {
     color: #475569 !important;
 }
 
-/* Hover Effect */
+/* Dynamic Hover Effect */
 .sidebar-pro .nav-link:hover {
-    color: var(--primary, #3B82F6) !important;
-    background: var(--nav-link-hover-bg, #F5F8FF) !important;
+    color: var(--theme-hex, var(--primary, #3B82F6)) !important;
+    background: var(--theme-hex-subtle, rgba(99, 102, 241, 0.12)) !important;
     transform: none !important;
 }
 html[data-theme="light"] .sidebar-pro .nav-link:hover .sidebar-label,
 html[data-theme="light"] .sidebar-pro .nav-link:hover .bi,
 html[data-theme="light"] .sidebar-pro .nav-link:hover .material-symbols-outlined {
-    color: var(--primary, #3B82F6) !important;
+    color: var(--theme-hex, var(--primary, #3B82F6)) !important;
 }
 html[data-theme="dark"] .sidebar-pro .nav-link:hover {
-    background: rgba(255, 255, 255, 0.06) !important;
-    color: #60a5fa !important;
+    background: rgba(var(--theme-hex-rgb, 99, 102, 241), 0.18) !important;
+    color: #ffffff !important;
 }
 
 /* Active State (SaaS Glowing Pill Gradient Style) */

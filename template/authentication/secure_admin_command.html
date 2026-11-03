@@ -28,12 +28,12 @@
             padding: 24px;
         }
         .command-card {
-            background: rgba(15, 23, 42, 0.94);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 20px;
             padding: 24px;
             margin-bottom: 24px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
         .badge-status-live {
             padding: 6px 14px;
@@ -42,8 +42,8 @@
             font-weight: 700;
         }
         .health-item {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             padding: 12px 16px;
             display: flex;
@@ -51,14 +51,24 @@
             justify-content: space-between;
         }
         .form-control, .form-select {
-            background: rgba(30, 41, 59, 0.8) !important;
-            border: 1px solid rgba(255, 255, 255, 0.14) !important;
+            background: rgba(30, 41, 59, 0.85) !important;
+            border: 1px solid rgba(255, 255, 255, 0.18) !important;
             color: #ffffff !important;
             border-radius: 10px;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #818cf8 !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+            color: #ffffff !important;
         }
         .table-dark-custom {
             --bs-table-bg: transparent;
             font-size: 0.82rem;
+        }
+        .table-dark-custom th {
+            color: #cbd5e1 !important;
+            font-weight: 600;
+            letter-spacing: 0.04em;
         }
     </style>
 </head>
@@ -72,16 +82,19 @@
                 </div>
                 <div>
                     <h4 class="fw-bold mb-0 text-white">Super Admin Maintenance Command Center</h4>
-                    <small class="text-muted">Direct privileged controller &bull; Logged in as <span class="text-info fw-bold">{{ request.user.username }}</span></small>
+                    <small style="color: #cbd5e1;">Direct privileged controller &bull; Logged in as <span class="text-info fw-bold">{{ request.user.username }}</span></small>
                 </div>
             </div>
             <div class="d-flex align-items-center gap-2">
                 <a href="/authentication/settings/system/?tab=operations" class="btn btn-outline-light btn-sm px-3 rounded-3">
                     <i class="bi bi-sliders me-1"></i>Full System Settings
                 </a>
-                <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm px-3 rounded-3">
-                    <i class="bi bi-box-arrow-right me-1"></i>Logout
-                </a>
+                <form method="POST" action="{% url 'logout' %}" class="d-inline m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm px-3 rounded-3">
+                        <i class="bi bi-box-arrow-right me-1"></i>Logout
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -98,7 +111,7 @@
             <div class="col-lg-7">
                 <div class="command-card">
                     <div class="d-flex align-items-center justify-content-between mb-3">
-                        <h6 class="fw-bold text-uppercase text-muted mb-0" style="font-size: 0.8rem; letter-spacing: 0.05em;">
+                        <h6 class="fw-bold text-uppercase mb-0" style="font-size: 0.8rem; letter-spacing: 0.06em; color: #94a3b8;">
                             <i class="bi bi-power me-1.5 text-warning"></i>Maintenance State Controls
                         </h6>
                         {% if system_settings.maintenance_mode %}
@@ -151,7 +164,7 @@
                         
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Maintenance Status</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Maintenance Status</label>
                                 <select name="maintenance_status" class="form-select">
                                     <option value="active" {% if system_settings.maintenance_status == 'active' %}selected{% endif %}>Maintenance Active</option>
                                     <option value="scheduled" {% if system_settings.maintenance_status == 'scheduled' %}selected{% endif %}>Scheduled Maintenance</option>
@@ -160,34 +173,34 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Maintenance Mode Type</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Maintenance Mode Type</label>
                                 <select name="maintenance_type" class="form-select">
                                     <option value="manual" {% if system_settings.maintenance_type == 'manual' %}selected{% endif %}>Manual (Admin Controlled)</option>
                                     <option value="automatic" {% if system_settings.maintenance_type == 'automatic' %}selected{% endif %}>Automatic (System Managed)</option>
                                 </select>
                             </div>
                             <div class="col-md-12">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Maintenance Title</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Maintenance Title</label>
                                 <input type="text" name="maintenance_title" class="form-control" value="{{ system_settings.maintenance_title }}">
                             </div>
                             <div class="col-md-12">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Maintenance Reason</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Maintenance Reason</label>
                                 <input type="text" name="maintenance_reason" class="form-control" value="{{ system_settings.maintenance_reason }}">
                             </div>
                             <div class="col-md-12">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Announcement Message (Public)</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Announcement Message (Public)</label>
                                 <textarea name="maintenance_message" class="form-control" rows="2">{{ system_settings.maintenance_message }}</textarea>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Active Stage</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Active Stage</label>
                                 <input type="text" name="maintenance_stage" class="form-control" value="{{ system_settings.maintenance_stage }}">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Progress %</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Progress %</label>
                                 <input type="number" min="0" max="100" name="maintenance_progress" class="form-control" value="{{ system_settings.maintenance_progress }}">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label small text-muted text-uppercase fw-bold" style="font-size: 0.72rem;">Est. Time (ETA)</label>
+                                <label class="form-label small text-uppercase fw-semibold" style="font-size: 0.75rem; color: #cbd5e1; letter-spacing: 0.05em;">Est. Time (ETA)</label>
                                 <input type="text" name="estimated_restoration_time" class="form-control" value="{{ system_settings.estimated_restoration_time }}">
                             </div>
                         </div>
@@ -202,13 +215,13 @@
             <!-- Right Column: Live Health Diagnostics & Recovery Criteria -->
             <div class="col-lg-5">
                 <div class="command-card">
-                    <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size: 0.8rem; letter-spacing: 0.05em;">
+                    <h6 class="fw-bold text-uppercase mb-3" style="font-size: 0.8rem; letter-spacing: 0.06em; color: #94a3b8;">
                         <i class="bi bi-heart-pulse me-1.5 text-danger"></i>System Health Diagnostics
                     </h6>
 
-                    <div class="p-3 rounded-3 mb-3" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08);">
+                    <div class="p-3 rounded-3 mb-3" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1);">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="small text-muted">Recovery Stability Counter:</span>
+                            <span class="small" style="color: #cbd5e1;">Recovery Stability Counter:</span>
                             <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50">
                                 {{ system_settings.consecutive_success_count }} / {{ system_settings.consecutive_success_required }} Consecutive Passes
                             </span>
@@ -216,7 +229,7 @@
                         <div class="progress" style="height: 6px; background: rgba(255, 255, 255, 0.08);">
                             <div class="progress-bar bg-info" style="width: {% widthratio system_settings.consecutive_success_count system_settings.consecutive_success_required 100 %}%;"></div>
                         </div>
-                        <small class="text-muted d-block mt-2" style="font-size: 0.72rem;">
+                        <small class="d-block mt-2" style="font-size: 0.75rem; color: #94a3b8;">
                             Auto-recovery triggers automatically when all checks pass consecutively {{ system_settings.consecutive_success_required }} times.
                         </small>
                     </div>
@@ -225,8 +238,8 @@
                         {% for check in health_summary.checks %}
                         <div class="health-item">
                             <div>
-                                <span class="fw-bold d-block text-white" style="font-size: 0.82rem;">{{ check.name }}</span>
-                                <small class="text-muted" style="font-size: 0.72rem;">{{ check.message }}</small>
+                                <span class="fw-bold d-block text-white" style="font-size: 0.84rem;">{{ check.name }}</span>
+                                <small style="font-size: 0.75rem; color: #94a3b8;">{{ check.message }}</small>
                             </div>
                             <span class="badge {% if check.passed %}bg-success bg-opacity-25 text-success border border-success border-opacity-50{% else %}bg-danger bg-opacity-25 text-danger border border-danger border-opacity-50{% endif %}">
                                 {% if check.passed %}PASS{% else %}FAIL{% endif %}
@@ -235,8 +248,8 @@
                         {% endfor %}
                     </div>
 
-                    <div class="small text-muted" style="font-size: 0.75rem;">
-                        <i class="bi bi-clock me-1"></i>Last Health Check: {{ system_settings.last_health_check_at|date:"Y-m-d H:i:s"|default:"Pending" }}
+                    <div class="small" style="font-size: 0.76rem; color: #94a3b8;">
+                        <i class="bi bi-clock me-1 text-primary"></i>Last Health Check: <span class="text-white">{{ system_settings.last_health_check_at|date:"Y-m-d H:i:s"|default:"Pending" }}</span>
                     </div>
                 </div>
             </div>
@@ -244,13 +257,13 @@
 
         <!-- Recent Maintenance Audit Trail -->
         <div class="command-card">
-            <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size: 0.8rem; letter-spacing: 0.05em;">
-                <i class="bi bi-journal-text me-1.5 text-info"></i>Maintenance & Security Audit Trail
+            <h6 class="fw-bold text-uppercase mb-3" style="font-size: 0.8rem; letter-spacing: 0.06em; color: #94a3b8;">
+                <i class="bi bi-journal-text me-1.5 text-info"></i>Maintenance &amp; Security Audit Trail
             </h6>
             <div class="table-responsive">
                 <table class="table table-dark table-dark-custom align-middle mb-0">
                     <thead>
-                        <tr class="text-muted border-bottom border-secondary border-opacity-25">
+                        <tr class="border-bottom border-secondary border-opacity-25">
                             <th>Timestamp</th>
                             <th>Actor</th>
                             <th>Action</th>
@@ -261,19 +274,19 @@
                     <tbody>
                         {% for log in recent_logs %}
                         <tr>
-                            <td class="font-monospace text-muted">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                            <td class="font-monospace" style="color: #94a3b8;">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
                             <td><span class="badge bg-secondary bg-opacity-25 text-light">{{ log.actor.username|default:"System Engine" }}</span></td>
                             <td>
                                 <span class="badge {% if 'enabled' in log.action or 'violation' in log.action %}bg-danger bg-opacity-25 text-danger{% elif 'recovered' in log.action or 'disabled' in log.action %}bg-success bg-opacity-25 text-success{% else %}bg-info bg-opacity-25 text-info{% endif %}">
                                     {{ log.get_action_display }}
                                 </span>
                             </td>
-                            <td>{{ log.details }}</td>
-                            <td class="font-monospace text-muted">{{ log.ip_address|default:"127.0.0.1" }}</td>
+                            <td class="text-light">{{ log.details }}</td>
+                            <td class="font-monospace" style="color: #94a3b8;">{{ log.ip_address|default:"127.0.0.1" }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-3">No maintenance audit records logged yet.</td>
+                            <td colspan="5" class="text-center py-3" style="color: #94a3b8;">No maintenance audit records logged yet.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -283,4 +296,3 @@
     </div>
 </body>
 </html>
-

@@ -198,8 +198,8 @@ class SystemHealthService:
                     can_recover = False
                     if trigger == 'manual':
                         can_recover = True
-                    elif settings_obj.auto_recovery_enabled:
-                        # Auto recovery is enabled
+                    elif settings_obj.auto_recovery_enabled and settings_obj.maintenance_type == 'automatic':
+                        # Auto recovery is enabled and maintenance type is set to automatic
                         can_recover = True
 
                     if can_recover:

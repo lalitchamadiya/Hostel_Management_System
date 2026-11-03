@@ -392,6 +392,10 @@ class LogoutView(View):
 
         return redirect('login')
 
+    def get(self, request):
+
+        return self.post(request)
+
 
 
 
@@ -1740,9 +1744,15 @@ class SystemSettingsForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        if self.instance and self.instance.pk:
-            for field_name in self.fields:
-                if field_name not in self.data:
+        for field_name, field in self.fields.items():
+            if isinstance(field, forms.BooleanField):
+                if field_name in self.data:
+                    val = self.data.get(field_name)
+                    cleaned_data[field_name] = str(val).strip().lower() in ['on', 'true', '1', 'yes'] or val is True
+                elif self.instance and self.instance.pk:
+                    cleaned_data[field_name] = getattr(self.instance, field_name)
+            else:
+                if field_name not in self.data and self.instance and self.instance.pk:
                     cleaned_data[field_name] = getattr(self.instance, field_name)
         return cleaned_data
 
@@ -1865,6 +1875,14 @@ def system_settings_view(request):
 
 
             prev_maintenance = settings.maintenance_mode
+            if obj.maintenance_mode and not prev_maintenance:
+                obj.maintenance_activated_at = timezone.now()
+                obj.consecutive_success_count = 0
+                if obj.maintenance_status == 'restored':
+                    obj.maintenance_status = 'active'
+            elif not obj.maintenance_mode and prev_maintenance:
+                obj.maintenance_restored_at = timezone.now()
+                obj.maintenance_status = 'restored'
             obj.save()
 
             # Audit log activation or deactivation of maintenance mode
@@ -2068,7 +2086,9 @@ def secure_admin_access_view(request):
                 settings_obj.maintenance_mode = not settings_obj.maintenance_mode
                 if settings_obj.maintenance_mode:
                     settings_obj.maintenance_activated_at = timezone.now()
-                    settings_obj.maintenance_status = 'active'
+                    settings_obj.consecutive_success_count = 0
+                    if settings_obj.maintenance_status == 'restored':
+                        settings_obj.maintenance_status = 'active'
                     AuditLog.objects.create(
                         actor=request.user,
                         action='maintenance_enabled',

@@ -977,3 +977,25 @@ class MaintenanceModeComprehensiveTests(TestCase):
         res_restored = self.client.get('/')
         self.assertEqual(res_restored.status_code, 302)
         self.assertEqual(res_restored.url, '/student_app/dashboard/')
+    def test_12_logout_via_get_request(self):
+        """LogoutView accepts GET requests and logs the user out."""
+        self.client.force_login(self.super_user)
+        res = self.client.get('/logout/')
+        self.assertEqual(res.status_code, 302)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_13_manual_maintenance_not_lifted_by_auto_recovery(self):
+        """When maintenance_type is manual, background auto-checks do not auto-lift maintenance."""
+        self.settings.maintenance_mode = True
+        self.settings.maintenance_type = 'manual'
+        self.settings.auto_recovery_enabled = True
+        self.settings.consecutive_success_count = 0
+        self.settings.consecutive_success_required = 2
+        self.settings.save()
+
+        for _ in range(4):
+            SystemHealthService.evaluate_and_recover(trigger='auto')
+
+        self.settings.refresh_from_db()
+        self.assertTrue(self.settings.maintenance_mode)
+

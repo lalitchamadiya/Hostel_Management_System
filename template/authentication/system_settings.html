@@ -888,6 +888,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         });
 
+        // Ensure all checkboxes are explicitly submitted as on or off
+        document.querySelectorAll('.settings-section-form input[type="checkbox"]').forEach(cb => {
+            if (cb.name) {
+                data.set(cb.name, cb.checked ? 'on' : 'off');
+            }
+        });
+
 
 
         // Make AJAX request to same path (POST).

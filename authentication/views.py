@@ -27,6 +27,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from django.views import View
+from django.core.cache import cache
+from django.contrib.auth import update_session_auth_hash
 
 from django.views.decorators.http import require_POST
 
@@ -269,116 +271,114 @@ class RegistrationView(View):
 
 
 class LoginView(View):
-
     def get(self, request):
-
         return render(request, 'authentication/login.html')
 
-
-
     def post(self, request):
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
 
-        username = request.POST['username']
+        # Rate limiting check: max N failed attempts per minute per IP
+        x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+        client_ip = x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR', '127.0.0.1')
 
-        password = request.POST['password']
+        try:
+            settings_obj = SystemSettings.get_settings()
+        except Exception:
+            settings_obj = None
 
+        rate_limit = getattr(settings_obj, 'login_attempt_limit', 5) or 5
+        rate_key = f"login_rate_{client_ip}"
+        attempt_data = cache.get(rate_key)
+        now_ts = int(time.time())
 
+        if attempt_data and isinstance(attempt_data, dict):
+            elapsed = now_ts - attempt_data.get('start_ts', now_ts)
+            if elapsed < 60:
+                if attempt_data.get('count', 0) >= rate_limit:
+                    remaining = max(1, 60 - elapsed)
+                    messages.error(request, f"Too many failed login attempts. Limit is {rate_limit} attempt(s) per minute. Please wait {remaining} seconds before trying again.")
+                    return render(request, 'authentication/login.html', {'fieldValues': {'username': username}})
+            else:
+                attempt_data = {'count': 0, 'start_ts': now_ts}
+                cache.set(rate_key, attempt_data, timeout=60)
+        else:
+            attempt_data = {'count': 0, 'start_ts': now_ts}
+            cache.set(rate_key, attempt_data, timeout=60)
 
         if username and password:
-
             user = auth.authenticate(username=username, password=password)
-
             if user:
+                # Login succeeded: clear failed attempts
+                cache.delete(rate_key)
 
                 profile = None
-
                 try:
-
                     profile = user.profile
-
                 except Exception:
-
                     pass
 
-
-
                 # Check if account is locked
-
                 if profile and profile.is_locked:
-
                     messages.error(request, 'Your account has been locked. Contact an administrator.')
-
-                    return render(request, 'authentication/login.html')
-
-
+                    return render(request, 'authentication/login.html', {'fieldValues': {'username': username}})
 
                 if user.is_active:
-
                     auth.login(request, user)
-
-                    request.session.set_expiry(900)
+                    
+                    # Dynamically set session timeout from SystemSettings
+                    session_timeout = getattr(settings_obj, 'session_timeout', 1800) or 1800
+                    request.session.set_expiry(session_timeout)
+                    request.session['_last_activity'] = int(time.time())
 
                     log_action(user, 'login', user, request=request)
 
+                    # Check password expiry cycle
+                    expiry_days = getattr(settings_obj, 'password_expiry_days', 0) or 0
+                    if expiry_days > 0:
+                        last_changed = None
+                        if profile and profile.password_changed_at:
+                            last_changed = profile.password_changed_at
+                        elif user.date_joined:
+                            last_changed = user.date_joined
 
+                        if last_changed and (timezone.now() - last_changed).days >= expiry_days:
+                            return redirect('password_expired')
 
                     if profile and profile.role:
-
                         role_name = profile.role.name
-
                         if role_name in ('Super Admin', 'Admin'):
-
                             return redirect('superadmin_dashboard')
-
                         elif role_name == 'Student':
-
                             return redirect('student_app:student_dashboard')
-
                         elif role_name == 'Warden':
-
                             return redirect('warden_dashboard')
-
                         elif role_name == 'Staff':
-
                             return redirect('superadmin_dashboard')
-
                         elif role_name in ('Security Guard', 'Security'):
-
                             return redirect('security_dashboard')
-
                     elif user.is_superuser:
-
                         return redirect('superadmin_dashboard')
-
                     else:
-
                         return redirect('no_role')
-
-
 
                     return redirect('superadmin_dashboard')
 
-
-
                 messages.error(request, 'Account is not active')
+                return render(request, 'authentication/login.html', {'fieldValues': {'username': username}})
 
-                return render(request, 'authentication/login.html')
-
-
-
-            messages.error(request, 'Invalid credentials, try again')
-
-            return render(request, 'authentication/login.html')
-
-
+            # Failed credentials: increment rate counter
+            attempt_data['count'] = attempt_data.get('count', 0) + 1
+            cache.set(rate_key, attempt_data, timeout=60)
+            remaining_attempts = max(0, rate_limit - attempt_data['count'])
+            if remaining_attempts > 0:
+                messages.error(request, f'Invalid credentials. {remaining_attempts} attempt(s) remaining this minute.')
+            else:
+                messages.error(request, f'Too many failed login attempts. Limit of {rate_limit} attempt(s) per minute reached. Please wait 1 minute.')
+            return render(request, 'authentication/login.html', {'fieldValues': {'username': username}})
 
         messages.error(request, 'Please fill all fields')
-
         return render(request, 'authentication/login.html')
-
-
-
-
 
 class LogoutView(View):
 
@@ -1659,104 +1659,63 @@ from .models import SystemSettings
 
 
 TIMEZONE_CHOICES = [
-
     ('UTC', 'UTC'),
-
-    ('Asia/Kolkata', 'Asia/Kolkata (IST)'),
-
+    ('Asia/Kolkata', 'Asia/Kolkata (IST +05:30)'),
     ('America/New_York', 'America/New_York (EST/EDT)'),
-
+    ('America/Chicago', 'America/Chicago (CST/CDT)'),
+    ('America/Denver', 'America/Denver (MST/MDT)'),
+    ('America/Los_Angeles', 'America/Los_Angeles (PST/PDT)'),
     ('Europe/London', 'Europe/London (GMT/BST)'),
-
-    ('Asia/Dubai', 'Asia/Dubai'),
-
-    ('Asia/Singapore', 'Asia/Singapore'),
-
+    ('Europe/Paris', 'Europe/Paris (CET/CEST)'),
+    ('Europe/Berlin', 'Europe/Berlin (CET/CEST)'),
+    ('Asia/Dubai', 'Asia/Dubai (GST +04:00)'),
+    ('Asia/Singapore', 'Asia/Singapore (SGT +08:00)'),
+    ('Asia/Tokyo', 'Asia/Tokyo (JST +09:00)'),
+    ('Australia/Sydney', 'Australia/Sydney (AEST/AEDT)'),
+    ('Asia/Karachi', 'Asia/Karachi (PKT +05:00)'),
+    ('Asia/Dhaka', 'Asia/Dhaka (BST +06:00)'),
+    ('Africa/Cairo', 'Africa/Cairo (EEST +03:00)'),
+    ('Africa/Johannesburg', 'Africa/Johannesburg (SAST +02:00)'),
 ]
 
-
-
 class SystemSettingsForm(forms.ModelForm):
-
     class Meta:
-
         model = SystemSettings
-
         fields = [
-
             'system_name', 'organization_name', 'logo', 'favicon', 
-
-            'theme_color', 'dark_mode_default', 'timezone', 
-
+            'theme_color', 'dark_mode_default', 'show_theme_toggle', 'timezone', 
             'date_format', 'time_format', 'currency', 'language', 
-
-            'maintenance_mode', 'system_version', 'license_key', 'license_expiry',
-
+            'maintenance_mode', 'maintenance_message', 'estimated_restoration_time',
+            'system_version', 'license_key', 'license_expiry',
             'session_timeout', 'login_attempt_limit', 'allowed_ips',
-
             'enable_audit_logs', 'password_expiry_days', 'backup_frequency'
-
         ]
-
         widgets = {
-
             'system_name': forms.TextInput(attrs={'class': 'form-control'}),
-
             'organization_name': forms.TextInput(attrs={'class': 'form-control'}),
-
             'logo': forms.ClearableFileInput(attrs={'class': 'form-control'}),
-
             'favicon': forms.ClearableFileInput(attrs={'class': 'form-control'}),
-
             'theme_color': forms.TextInput(attrs={'class': 'form-control', 'type': 'color'}),
-
             'dark_mode_default': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-
-            'timezone': forms.Select(choices=TIMEZONE_CHOICES, attrs={'class': 'form-select'}),
-
-            'date_format': forms.TextInput(attrs={'class': 'form-control'}),
-
-            'time_format': forms.TextInput(attrs={'class': 'form-control'}),
-
+            'show_theme_toggle': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'timezone': forms.Select(choices=TIMEZONE_CHOICES, attrs={'class': 'form-select', 'id': 'id_timezone'}),
+            'date_format': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_date_format'}),
+            'time_format': forms.TextInput(attrs={'class': 'form-control', 'id': 'id_time_format'}),
             'currency': forms.TextInput(attrs={'class': 'form-control'}),
-
             'language': forms.TextInput(attrs={'class': 'form-control'}),
-
-            'maintenance_mode': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-
-            'system_version': forms.TextInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
-
-            'license_key': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-
+            'maintenance_mode': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_maintenance_mode'}),
+            'maintenance_message': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Enter public maintenance announcement message...'}),
+            'estimated_restoration_time': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 2 hours, 04:00 PM UTC'}),
+            'system_version': forms.TextInput(attrs={'class': 'form-control'}),
+            'license_key': forms.TextInput(attrs={'class': 'form-control'}),
             'license_expiry': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-
-            'session_timeout': forms.NumberInput(attrs={'class': 'form-control', 'min': 60, 'placeholder': 'e.g. 1800 (seconds)'}),
-
-            'login_attempt_limit': forms.NumberInput(attrs={'class': 'form-control', 'min': 1, 'max': 20, 'placeholder': 'e.g. 5 attempts'}),
-
-            'allowed_ips': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'e.g. 192.168.1.1, 10.0.0.0/24 (blank for all)'}),
-
+            'session_timeout': forms.NumberInput(attrs={'class': 'form-control', 'min': '60'}),
+            'login_attempt_limit': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'allowed_ips': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'enable_audit_logs': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-
-            'password_expiry_days': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'placeholder': 'e.g. 90 (0 to disable)'}),
-
-            'backup_frequency': forms.Select(choices=[
-
-                ('daily', 'Daily Auto-Backup'),
-
-                ('weekly', 'Weekly Auto-Backup'),
-
-                ('monthly', 'Monthly Auto-Backup'),
-
-                ('manual', 'Manual Backups Only')
-
-            ], attrs={'class': 'form-select'}),
-
+            'password_expiry_days': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'backup_frequency': forms.TextInput(attrs={'class': 'form-control'}),
         }
-
-
-
-
 
 
 
@@ -1876,22 +1835,29 @@ def system_settings_view(request):
 
 
 
+            prev_maintenance = settings.maintenance_mode
             obj.save()
 
+            # Audit log activation or deactivation of maintenance mode
+            if prev_maintenance != obj.maintenance_mode:
+                action_status = "ENABLED" if obj.maintenance_mode else "DISABLED"
+                log_action(
+                    actor=request.user,
+                    action='edit',
+                    target_user=request.user,
+                    details=f"System Maintenance Mode was {action_status} by {request.user.username}. Restoration: {obj.estimated_restoration_time}. Notice: {obj.maintenance_message}",
+                    request=request
+                )
+
             messages.success(request, "Global system settings updated successfully!")
-
             if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-
                 return JsonResponse({
-
                     'status': 'success',
-
                     'message': 'Global system settings updated successfully!',
-
                     'theme_color': obj.theme_color,
-
                     'dark_mode_default': obj.dark_mode_default,
-
+                    'show_theme_toggle': obj.show_theme_toggle,
+                    'maintenance_mode': obj.maintenance_mode,
                 })
 
             return redirect('system_settings_view')
@@ -1948,3 +1914,76 @@ def keep_alive_view(request):
 
 
 
+
+
+@login_required
+def password_expired_view(request):
+    """
+    Enforces mandatory password reset when the configured password expiry cycle is exceeded.
+    Without a successful password change, this view blocks all application navigation.
+    """
+    try:
+        from authentication.models import SystemSettings
+        settings_obj = SystemSettings.get_settings()
+        expiry_days = getattr(settings_obj, 'password_expiry_days', 90) or 90
+    except Exception:
+        settings_obj = None
+        expiry_days = 90
+
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        if not request.user.check_password(current_password):
+            messages.error(request, 'Current password is incorrect.')
+            return render(request, 'authentication/password_expired.html', {'expiry_days': expiry_days, 'system_settings': settings_obj})
+
+        if new_password != confirm_password:
+            messages.error(request, 'New passwords do not match.')
+            return render(request, 'authentication/password_expired.html', {'expiry_days': expiry_days, 'system_settings': settings_obj})
+
+        if len(new_password) < 6:
+            messages.error(request, 'New password must be at least 6 characters long.')
+            return render(request, 'authentication/password_expired.html', {'expiry_days': expiry_days, 'system_settings': settings_obj})
+
+        if current_password == new_password:
+            messages.error(request, 'New password cannot be the same as your current password.')
+            return render(request, 'authentication/password_expired.html', {'expiry_days': expiry_days, 'system_settings': settings_obj})
+
+        # Apply password update
+        request.user.set_password(new_password)
+        request.user.save()
+
+        profile = getattr(request.user, 'profile', None)
+        if profile:
+            profile.password_changed_at = timezone.now()
+            profile.save()
+
+        from django.contrib.auth import update_session_auth_hash
+        update_session_auth_hash(request, request.user)
+
+        log_action(request.user, 'password_reset', request.user, details="Password changed due to password expiry cycle policy", request=request)
+        messages.success(request, 'Password changed successfully! You may now access your account.')
+
+        # Redirect to designated portal
+        if profile and profile.role:
+            role_name = profile.role.name
+            if role_name in ('Super Admin', 'Admin'):
+                return redirect('superadmin_dashboard')
+            elif role_name == 'Student':
+                return redirect('student_app:student_dashboard')
+            elif role_name == 'Warden':
+                return redirect('warden_dashboard')
+            elif role_name == 'Staff':
+                return redirect('superadmin_dashboard')
+            elif role_name in ('Security Guard', 'Security'):
+                return redirect('security_dashboard')
+        elif request.user.is_superuser:
+            return redirect('superadmin_dashboard')
+        return redirect('no_role')
+
+    return render(request, 'authentication/password_expired.html', {
+        'expiry_days': expiry_days,
+        'system_settings': settings_obj,
+    })

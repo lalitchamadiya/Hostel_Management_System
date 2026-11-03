@@ -242,11 +242,13 @@
 
     <!-- Theme Switcher Direct Toggle Button -->
 
+    {% if system_settings.show_theme_toggle %}
     <button class="btn btn-nav-action-circle me-2 theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle Dark/Light Theme" aria-label="Toggle Dark/Light Theme">
 
         <i class="bi bi-moon-fill" id="themeIcon" style="font-size:0.9rem;"></i>
 
     </button>
+    {% endif %}
 
 
 

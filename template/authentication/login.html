@@ -13,9 +13,11 @@
             {% endif %}
             <span class="fw-bold" style="color: var(--text-main, inherit);">{{ system_settings.system_name|default:"Hostel Management System" }}</span>
         </a>
+        {% if system_settings.show_theme_toggle %}
         <button id="themeToggleBtn" class="btn btn-sm btn-nav-action-circle theme-toggle-btn" type="button" title="Toggle Theme" aria-label="Toggle Light/Dark Theme">
           <i class="bi bi-moon-fill" id="themeIcon"></i>
         </button>
+        {% endif %}
     </div>
 </nav>
 

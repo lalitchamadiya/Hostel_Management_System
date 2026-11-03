@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django.test import TestCase, RequestFactory
 
 from django.contrib.auth.models import User, AnonymousUser
@@ -592,3 +593,141 @@ class GlobalThemeStylingTests(TestCase):
         settings = SystemSettings.get_settings()
         self.assertEqual(settings.theme_color, '#059669')
         self.assertFalse(settings.dark_mode_default)
+
+
+class SystemSettingsAdvancedFeaturesTests(TestCase):
+    def setUp(self):
+        self.superadmin_role = Role.objects.create(name='Super Admin', description='Super Admin Role')
+        self.superadmin = User.objects.create_superuser('superboss', 'boss@test.com', 'BossPass123!')
+        UserProfile.objects.create(user=self.superadmin, role=self.superadmin_role)
+
+        self.student_role = Role.objects.create(name='Student', description='Student Role')
+        self.student_user = User.objects.create_user('student1', 'student1@test.com', 'OldPass123!')
+        self.student_profile = UserProfile.objects.create(
+            user=self.student_user,
+            role=self.student_role,
+            password_changed_at=timezone.now()
+        )
+        from student.models import Student
+        self.student = Student.objects.create(
+            user=self.student_user,
+            name='Student One',
+            email='student1@test.com',
+            gender='Male'
+        )
+
+        self.settings = SystemSettings.get_settings()
+        self.settings.maintenance_mode = False
+        self.settings.show_theme_toggle = True
+        self.settings.password_expiry_days = 90
+        self.settings.login_attempt_limit = 3
+        self.settings.save()
+
+    def test_show_theme_toggle_controls_visibility(self):
+        # When show_theme_toggle is True
+        self.settings.show_theme_toggle = True
+        self.settings.save()
+
+        res = self.client.get(reverse('login'))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'id="themeToggleBtn"')
+
+        # When show_theme_toggle is False
+        self.settings.show_theme_toggle = False
+        self.settings.save()
+
+        res_hidden = self.client.get(reverse('login'))
+        self.assertEqual(res_hidden.status_code, 200)
+        self.assertNotContains(res_hidden, 'id="themeToggleBtn"')
+
+    def test_password_expiry_enforcement(self):
+        # Set user password changed 95 days ago
+        self.settings.password_expiry_days = 90
+        self.settings.save()
+
+        self.student_profile.password_changed_at = timezone.now() - timezone.timedelta(days=95)
+        self.student_profile.save()
+
+        self.client.force_login(self.student_user)
+
+        # Attempt to access student portal -> should be redirected to password_expired
+        res = self.client.get(reverse('student_app:student_dashboard'))
+        self.assertEqual(res.status_code, 302)
+        self.assertIn('/authentication/password-expired/', res.url)
+
+        # Following redirect leads to password expired change page
+        res_page = self.client.get(reverse('password_expired'))
+        self.assertEqual(res_page.status_code, 200)
+        self.assertContains(res_page, 'Password Expired')
+
+        # Submit new password
+        post_data = {
+            'current_password': 'OldPass123!',
+            'new_password': 'BrandNewSecurePass456!',
+            'confirm_password': 'BrandNewSecurePass456!',
+        }
+        res_change = self.client.post(reverse('password_expired'), post_data)
+        self.assertEqual(res_change.status_code, 302)
+
+        # Verify password was updated in DB and password_changed_at refreshed
+        self.student_user.refresh_from_db()
+        self.student_profile.refresh_from_db()
+        self.assertTrue(self.student_user.check_password('BrandNewSecurePass456!'))
+        days_since = (timezone.now() - self.student_profile.password_changed_at).days
+        self.assertEqual(days_since, 0)
+
+    def test_login_rate_limiting(self):
+        from django.core.cache import cache
+        cache.clear()
+
+        self.settings.login_attempt_limit = 2
+        self.settings.save()
+
+        login_url = reverse('login')
+
+        # 1st invalid attempt
+        res1 = self.client.post(login_url, {'username': 'testuser', 'password': 'wrong1'})
+        self.assertEqual(res1.status_code, 200)
+        self.assertContains(res1, '1 attempt(s) remaining')
+
+        # 2nd invalid attempt
+        res2 = self.client.post(login_url, {'username': 'testuser', 'password': 'wrong2'})
+        self.assertEqual(res2.status_code, 200)
+        self.assertContains(res2, 'Too many failed login attempts')
+
+        # 3rd attempt: blocked by rate limiter
+        res3 = self.client.post(login_url, {'username': 'testuser', 'password': 'wrong3'})
+        self.assertEqual(res3.status_code, 200)
+        self.assertContains(res3, 'Too many failed login attempts')
+
+    def test_maintenance_mode_enforcement(self):
+        self.settings.maintenance_mode = True
+        self.settings.maintenance_message = "Upgrading database cluster"
+        self.settings.estimated_restoration_time = "30 minutes"
+        self.settings.save()
+
+        # Regular student visitor -> 503 Service Unavailable
+        self.client.force_login(self.student_user)
+        res_student = self.client.get(reverse('student_app:student_dashboard'))
+        self.assertEqual(res_student.status_code, 503)
+        self.assertContains(res_student, 'System Under Maintenance', status_code=503)
+        self.assertContains(res_student, 'Upgrading database cluster', status_code=503)
+        self.assertContains(res_student, '30 minutes', status_code=503)
+
+        # AJAX request during maintenance -> 503 JSON
+        res_ajax = self.client.get(reverse('student_app:student_dashboard'), HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res_ajax.status_code, 503)
+        self.assertEqual(res_ajax.json().get('status'), 'maintenance')
+
+        # Super Admin visitor -> 200 OK (Exempt from maintenance lockout)
+        self.client.force_login(self.superadmin)
+        res_super = self.client.get(reverse('superadmin_dashboard'))
+        self.assertEqual(res_super.status_code, 200)
+
+        # Disable maintenance mode -> immediate 200 restoration for regular student
+        self.settings.maintenance_mode = False
+        self.settings.save()
+
+        self.client.force_login(self.student_user)
+        res_restored = self.client.get(reverse('student_app:student_dashboard'))
+        self.assertEqual(res_restored.status_code, 200)

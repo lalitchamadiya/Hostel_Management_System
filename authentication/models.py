@@ -145,6 +145,7 @@ class UserProfile(models.Model):
     photo_data = models.TextField(blank=True, null=True, help_text="Base64 Data URI for persistent serverless photo storage")
 
     is_locked = models.BooleanField(default=False)  # Locked accounts cannot log in
+    password_changed_at = models.DateTimeField(default=timezone.now, null=True, blank=True, help_text="Timestamp of last password change for expiry cycle enforcement")
 
 
 
@@ -447,6 +448,7 @@ class SystemSettings(models.Model):
     theme_color = models.CharField(max_length=7, default='#6366f1', help_text="Hex color code")
 
     dark_mode_default = models.BooleanField(default=True)
+    show_theme_toggle = models.BooleanField(default=True, help_text="Show Dark/Light Mode toggle button in navigation")
 
     timezone = models.CharField(max_length=100, default='Asia/Kolkata')
 
@@ -459,6 +461,9 @@ class SystemSettings(models.Model):
     language = models.CharField(max_length=10, default='en')
 
     maintenance_mode = models.BooleanField(default=False)
+    maintenance_message = models.TextField(default="We are currently performing scheduled system maintenance and upgrades. We will be back online shortly.", blank=True)
+    estimated_restoration_time = models.CharField(max_length=100, default="Within 1 hour", blank=True)
+    maintenance_activated_at = models.DateTimeField(null=True, blank=True)
 
     system_version = models.CharField(max_length=20, default='1.0.0')
 

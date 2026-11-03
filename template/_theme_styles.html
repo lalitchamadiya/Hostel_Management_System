@@ -489,6 +489,12 @@
   .modal-content label {
     color: #475569 !important;
   }
+  {% if not system_settings.show_theme_toggle %}
+  #themeToggleBtn,
+  .theme-toggle-btn {
+    display: none !important;
+  }
+  {% endif %}
 </style>
 
 <!-- Anti-Flash Instant Theme Execution (Runs synchronously in <head>) -->

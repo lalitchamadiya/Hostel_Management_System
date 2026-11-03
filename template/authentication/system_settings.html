@@ -320,213 +320,173 @@
 
 
 
-                            <!-- Theme Pane -->
-
+                                                        <!-- Theme Pane -->
                             <div class="tab-pane fade {% if request.GET.tab == 'theme' %}show active{% endif %}" id="tab-theme" role="tabpanel">
-
                                 <form class="settings-section-form">
-
                                     {% csrf_token %}
-
                                     <h6 class="section-header mb-3"><i class="bi bi-palette me-2 text-primary"></i>Theme & Styling</h6>
-
                                     <div class="row g-2.5 mb-3">
-
-                                        <div class="col-md-6">
-
+                                        <div class="col-md-4">
                                             <label class="form-label">Theme Color Override</label>
-
                                             {{ form.theme_color }}
-
                                         </div>
-
-                                        <div class="col-md-6 d-flex align-items-center mt-3 mt-md-4">
-
+                                        <div class="col-md-4 d-flex align-items-center mt-3 mt-md-4">
                                             <div class="form-check form-switch ps-5">
-
                                                 {{ form.dark_mode_default }}
-
                                                 <label class="form-check-label fw-bold text-secondary" style="font-size:0.8rem;">Enforce Dark Mode as Default</label>
-
                                             </div>
-
                                         </div>
-
+                                        <div class="col-md-4 d-flex align-items-center mt-3 mt-md-4">
+                                            <div class="form-check form-switch ps-5">
+                                                {{ form.show_theme_toggle }}
+                                                <label class="form-check-label fw-bold text-secondary" style="font-size:0.8rem;">Show Dark/Light Mode Switcher</label>
+                                            </div>
+                                        </div>
                                     </div>
-
                                 </form>
-
                             </div>
 
 
 
-                            <!-- Regional Pane -->
-
+                                                        <!-- Regional Pane -->
                             <div class="tab-pane fade {% if request.GET.tab == 'regional' %}show active{% endif %}" id="tab-regional" role="tabpanel">
-
                                 <form class="settings-section-form">
-
                                     {% csrf_token %}
+                                    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                                        <h6 class="section-header mb-0"><i class="bi bi-globe me-2 text-primary"></i>Regional Defaults</h6>
+                                        <button type="button" id="auto-detect-time-btn" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 fw-semibold" style="font-size: 0.78rem;">
+                                            <i class="bi bi-crosshair me-1"></i>Auto-Detect Device Timezone & Time
+                                        </button>
+                                    </div>
 
-                                    <h6 class="section-header mb-3"><i class="bi bi-globe me-2 text-primary"></i>Regional Defaults</h6>
+                                    <!-- Dynamic Live Time Display & Preview -->
+                                    <div class="card p-3 mb-3 border-0 rounded-3 shadow-sm" style="background: rgba(var(--theme-hex-rgb), 0.05); border: 1px solid rgba(var(--theme-hex-rgb), 0.2) !important;">
+                                        <div class="row g-2 align-items-center">
+                                            <div class="col-md-4 border-end border-secondary border-opacity-10">
+                                                <small class="text-muted d-block fw-semibold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Live Selected Timezone Clock</small>
+                                                <span id="live-tz-clock" class="fw-bold fs-5 text-primary font-monospace">--:--:--</span>
+                                                <div id="live-tz-name" class="text-muted text-truncate" style="font-size: 0.72rem;">{{ form.instance.timezone }}</div>
+                                            </div>
+                                            <div class="col-md-5 border-end border-secondary border-opacity-10">
+                                                <small class="text-muted d-block fw-semibold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Formatted Date & Time Preview</small>
+                                                <span id="live-tz-preview" class="fw-bold" style="color: var(--text-main); font-size: 0.9rem;">--</span>
+                                                <div class="text-muted" style="font-size: 0.72rem;">Updates dynamically with pattern changes</div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <small class="text-muted d-block fw-semibold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">Original Device Time</small>
+                                                <span id="live-device-clock" class="text-muted font-monospace" style="font-size: 0.85rem;">--:--:--</span>
+                                                <div class="text-muted" style="font-size: 0.72rem;">Local Device Clock</div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     <div class="row g-2.5 mb-3">
-
                                         <div class="col-md-6">
-
                                             <label class="form-label">Default System Timezone</label>
-
                                             {{ form.timezone }}
-
                                         </div>
-
                                         <div class="col-md-6">
-
                                             <label class="form-label">Currency Symbol</label>
-
                                             {{ form.currency }}
-
                                         </div>
-
                                         <div class="col-md-4">
-
                                             <label class="form-label">Date Format Pattern</label>
-
                                             {{ form.date_format }}
-
                                         </div>
-
                                         <div class="col-md-4">
-
                                             <label class="form-label">Time Format Pattern</label>
-
                                             {{ form.time_format }}
-
                                         </div>
-
                                         <div class="col-md-4">
-
                                             <label class="form-label">Core Language</label>
-
                                             {{ form.language }}
-
                                         </div>
-
                                     </div>
-
                                 </form>
-
                             </div>
 
 
 
-                            <!-- Security Pane -->
-
+                                                        <!-- Security Pane -->
                             <div class="tab-pane fade {% if request.GET.tab == 'security' %}show active{% endif %}" id="tab-security" role="tabpanel">
-
                                 <form class="settings-section-form">
-
                                     {% csrf_token %}
-
                                     <h6 class="section-header mb-3"><i class="bi bi-shield-check me-2 text-primary"></i>Security & Session Settings</h6>
-
                                     <div class="row g-2.5 mb-3">
-
                                         <div class="col-md-6">
-
                                             <label class="form-label">Session Timeout (Seconds)</label>
-
                                             {{ form.session_timeout }}
-
+                                            <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">Dynamic inactivity timeout in seconds (e.g. 900 = 15m, 1800 = 30m, 3600 = 1h). Applies across all portals.</small>
                                         </div>
-
                                         <div class="col-md-6">
-
                                             <label class="form-label">Password Expiry Cycle (Days)</label>
-
                                             {{ form.password_expiry_days }}
-
+                                            <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">Forces password reset page after login when days elapsed &ge; cycle (0 to disable). Users cannot close or bypass until updated.</small>
                                         </div>
-
                                     </div>
-
                                 </form>
-
                             </div>
 
 
 
-                            <!-- Access Pane -->
-
+                                                        <!-- Access Pane -->
                             <div class="tab-pane fade {% if request.GET.tab == 'access' %}show active{% endif %}" id="tab-access" role="tabpanel">
-
                                 <form class="settings-section-form">
-
                                     {% csrf_token %}
-
                                     <h6 class="section-header mb-3"><i class="bi bi-shield-slash me-2 text-primary"></i>Access Control Settings</h6>
-
                                     <div class="row g-2.5 mb-3">
-
                                         <div class="col-md-6">
-
-                                            <label class="form-label">Login Attempt Limit</label>
-
+                                            <label class="form-label">Login Attempt Limit (Rate Limit / 1 Min)</label>
                                             {{ form.login_attempt_limit }}
-
+                                            <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">Rate limit: Max failed login attempts allowed per 1-minute window per IP before cooldown is enforced.</small>
                                         </div>
-
                                         <div class="col-md-6">
-
                                             <label class="form-label">Allowed IP Address Whitelist (Comma-separated)</label>
-
                                             {{ form.allowed_ips }}
-
+                                            <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">Optional comma-separated list of IPs or CIDRs permitted to access admin areas.</small>
                                         </div>
-
                                     </div>
-
                                 </form>
-
                             </div>
 
 
 
-                            <!-- Operations Pane -->
-
+                                                        <!-- Operations Pane -->
                             <div class="tab-pane fade {% if request.GET.tab == 'operations' %}show active{% endif %}" id="tab-operations" role="tabpanel">
-
                                 <form class="settings-section-form">
-
                                     {% csrf_token %}
-
                                     <h6 class="section-header mb-3"><i class="bi bi-cpu me-2 text-primary"></i>System Control & Version</h6>
 
-                                    <div class="row g-2.5 mb-3">
-
-                                        <div class="col-md-6">
-
-                                            <label class="form-label">Software Version (Read-only)</label>
-
-                                            {{ form.system_version }}
-
+                                    {% if settings.maintenance_mode %}
+                                    <div class="alert alert-warning border border-warning border-opacity-25 rounded-3 py-2 px-3 mb-3 d-flex align-items-center gap-2">
+                                        <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                                        <div>
+                                            <span class="fw-bold d-block" style="font-size: 0.85rem;">SYSTEM MAINTENANCE MODE IS CURRENTLY ACTIVE</span>
+                                            <small class="text-muted" style="font-size: 0.75rem;">All regular website visitors receive HTTP 503 Service Unavailable. Super Admins retain full management access.</small>
                                         </div>
-
-                                        <div class="col-md-6 d-flex align-items-center mt-3 mt-md-4">
-
-                                            <div class="form-check form-switch ps-5">
-
-                                                {{ form.maintenance_mode }}
-
-                                                <label class="form-check-label fw-bold text-danger" style="font-size:0.8rem;">Enable System Maintenance Mode</label>
-
-                                            </div>
-
-                                        </div>
-
                                     </div>
+                                    {% endif %}
 
-
+                                    <div class="row g-2.5 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Software Version (Read-only)</label>
+                                            {{ form.system_version }}
+                                        </div>
+                                        <div class="col-md-6 d-flex align-items-center mt-3 mt-md-4">
+                                            <div class="form-check form-switch ps-5">
+                                                {{ form.maintenance_mode }}
+                                                <label class="form-check-label fw-bold text-danger" style="font-size:0.8rem;">Enable Global System Maintenance Mode</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="form-label">Public Maintenance Announcement Notice</label>
+                                            {{ form.maintenance_message }}
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Estimated Restoration Time</label>
+                                            {{ form.estimated_restoration_time }}
+                                        </div>
+                                    </div>
 
                                     <h6 class="section-header mb-3"><i class="bi bi-key me-2 text-primary"></i>Licensing</h6>
 
@@ -657,6 +617,92 @@
 <script>
 
 document.addEventListener('DOMContentLoaded', function() {
+    // -------------------------------------------------------------
+    // Regional Defaults: Dynamic Live Clock & Format Preview Engine
+    // -------------------------------------------------------------
+    function updateRegionalClocks() {
+        const now = new Date();
+
+        // 1. Original Device Time
+        const deviceEl = document.getElementById('live-device-clock');
+        if (deviceEl) {
+            deviceEl.textContent = now.toLocaleTimeString();
+        }
+
+        // 2. Selected Timezone Clock
+        const tzSelect = document.getElementById('id_timezone');
+        const tzClockEl = document.getElementById('live-tz-clock');
+        const tzNameEl = document.getElementById('live-tz-name');
+        const previewEl = document.getElementById('live-tz-preview');
+
+        let selectedTz = tzSelect ? tzSelect.value : 'UTC';
+        if (!selectedTz) selectedTz = 'UTC';
+
+        try {
+            const tzTimeStr = now.toLocaleTimeString('en-US', { timeZone: selectedTz, hour12: false });
+            if (tzClockEl) tzClockEl.textContent = tzTimeStr;
+            if (tzNameEl) tzNameEl.textContent = selectedTz;
+
+            // 3. Formatted Date & Time Pattern Preview
+            const dateFmt = (document.getElementById('id_date_format')?.value || 'Y-m-d').trim();
+            const timeFmt = (document.getElementById('id_time_format')?.value || 'H:i:s').trim();
+
+            const year = now.toLocaleDateString('en-US', { timeZone: selectedTz, year: 'numeric' });
+            const month = now.toLocaleDateString('en-US', { timeZone: selectedTz, month: '2-digit' });
+            const day = now.toLocaleDateString('en-US', { timeZone: selectedTz, day: '2-digit' });
+
+            let dateStr = dateFmt.replace(/Y/g, year).replace(/y/g, year.slice(-2)).replace(/m/g, month).replace(/d/g, day);
+            let fullPreview = dateStr + ' ' + tzTimeStr;
+            if (previewEl) previewEl.textContent = fullPreview;
+        } catch (err) {
+            if (tzClockEl) tzClockEl.textContent = now.toLocaleTimeString();
+            if (previewEl) previewEl.textContent = now.toLocaleString();
+        }
+    }
+
+    setInterval(updateRegionalClocks, 1000);
+    updateRegionalClocks();
+
+    ['id_timezone', 'id_date_format', 'id_time_format'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', updateRegionalClocks);
+            el.addEventListener('input', updateRegionalClocks);
+        }
+    });
+
+    // Auto-detect browser device timezone and current time
+    const autoDetectBtn = document.getElementById('auto-detect-time-btn');
+    if (autoDetectBtn) {
+        autoDetectBtn.addEventListener('click', function() {
+            try {
+                const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const tzSelect = document.getElementById('id_timezone');
+                if (tzSelect && detectedTz) {
+                    let optionExists = false;
+                    for (let i = 0; i < tzSelect.options.length; i++) {
+                        if (tzSelect.options[i].value === detectedTz) {
+                            tzSelect.selectedIndex = i;
+                            optionExists = true;
+                            break;
+                        }
+                    }
+                    if (!optionExists) {
+                        const newOpt = new Option(detectedTz + ' (Detected)', detectedTz, true, true);
+                        tzSelect.add(newOpt);
+                    }
+                    updateRegionalClocks();
+                    autoDetectBtn.innerHTML = '<i class="bi bi-check-circle-fill text-success me-1"></i>Detected: ' + detectedTz;
+                    setTimeout(() => {
+                        autoDetectBtn.innerHTML = '<i class="bi bi-crosshair me-1"></i>Auto-Detect Device Timezone & Time';
+                    }, 3000);
+                }
+            } catch (e) {
+                alert('Could not auto-detect timezone: ' + e.message);
+            }
+        });
+    }
+
 
     // Real-time live preview for Theme & Styling controls
     const colorInput = document.querySelector('input[name="theme_color"]') || document.getElementById('id_theme_color');

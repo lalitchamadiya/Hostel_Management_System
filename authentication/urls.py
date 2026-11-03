@@ -3,7 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .views import (
     RegistrationView, UserNameValidationView, EmailValidationView,
-    LoginView, LogoutView, no_role_view, keep_alive_view,
+    LoginView, LogoutView, no_role_view, keep_alive_view, password_expired_view,
     role_list, role_create, role_edit, role_delete, role_clone, permission_overview, add_custom_permission_element,
     user_list, user_create, user_detail, user_edit, user_delete,
     user_toggle_status, user_lock, user_reset_password,
@@ -19,6 +19,7 @@ urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('no-role/', no_role_view, name='no_role'),
+    path('password-expired/', password_expired_view, name='password_expired'),
     path('keep-alive/', keep_alive_view, name='keep_alive'),
     path('validate-username/', csrf_exempt(UserNameValidationView.as_view()), name='validate-username'),
     path('validate-email/', csrf_exempt(EmailValidationView.as_view()), name='validate_email'),

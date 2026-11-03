@@ -79,7 +79,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'authentication.middleware.MaintenanceModeMiddleware',
     'authentication.middleware.AutoLogout',
+    'authentication.middleware.PasswordExpiryMiddleware',
     'authentication.middleware.NoRoleAccessMiddleware',
 ]
 

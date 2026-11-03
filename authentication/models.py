@@ -592,6 +592,49 @@ class SystemSettings(models.Model):
 
         return None
 
+    @property
+    def theme_color_rgb(self):
+        """Return comma-separated R, G, B string for CSS rgb() / rgba() usage."""
+        hex_code = (self.theme_color or '#6366f1').strip().lstrip('#')
+        if len(hex_code) == 3:
+            hex_code = ''.join([c * 2 for c in hex_code])
+        if len(hex_code) != 6:
+            return '99, 102, 241'
+        try:
+            r = int(hex_code[0:2], 16)
+            g = int(hex_code[2:4], 16)
+            b = int(hex_code[4:6], 16)
+            return f"{r}, {g}, {b}"
+        except Exception:
+            return '99, 102, 241'
+
+    @property
+    def theme_color_hover(self):
+        """Return a slightly darker/deeper shade of the theme color for hover/active states."""
+        hex_code = (self.theme_color or '#6366f1').strip().lstrip('#')
+        if len(hex_code) == 3:
+            hex_code = ''.join([c * 2 for c in hex_code])
+        if len(hex_code) != 6:
+            return '#4f46e5'
+        try:
+            r = max(0, int(int(hex_code[0:2], 16) * 0.85))
+            g = max(0, int(int(hex_code[2:4], 16) * 0.85))
+            b = max(0, int(int(hex_code[4:6], 16) * 0.85))
+            return f"#{r:02x}{g:02x}{b:02x}"
+        except Exception:
+            return '#4f46e5'
+
+    @property
+    def theme_color_glow(self):
+        """Return CSS rgba string for soft glow / shadow effects."""
+        return f"rgba({self.theme_color_rgb}, 0.35)"
+
+    @property
+    def theme_color_subtle(self):
+        """Return CSS rgba string for subtle tint / hover backgrounds."""
+        return f"rgba({self.theme_color_rgb}, 0.12)"
+
+
 
 
 

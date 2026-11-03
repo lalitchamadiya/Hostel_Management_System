@@ -1,57 +1,132 @@
 /* =========================================================
-   HMS — Theme Toggle (Light / Dark / System Auto Detection)
-   Calculates active settings and matches OS theme options
+   HMS — Centralized Theme Management System
+   Handles Theme Color, Light/Dark/System Toggle, Anti-Flash,
+   Live In-Memory Variable Updates, and Persistence
    ========================================================= */
 (function () {
   var THEME_KEY = 'hms_theme';
 
   function getSystemTheme() {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
   }
 
+  function hexToRgb(hex) {
+    if (!hex) return '99, 102, 241';
+    var clean = hex.trim().replace('#', '');
+    if (clean.length === 3) {
+      clean = clean.split('').map(function(c) { return c + c; }).join('');
+    }
+    if (clean.length !== 6) return '99, 102, 241';
+    var r = parseInt(clean.substring(0, 2), 16);
+    var g = parseInt(clean.substring(2, 4), 16);
+    var b = parseInt(clean.substring(4, 6), 16);
+    return isNaN(r) || isNaN(g) || isNaN(b) ? '99, 102, 241' : (r + ', ' + g + ', ' + b);
+  }
+
+  function hexToHover(hex) {
+    if (!hex) return '#4f46e5';
+    var clean = hex.trim().replace('#', '');
+    if (clean.length === 3) {
+      clean = clean.split('').map(function(c) { return c + c; }).join('');
+    }
+    if (clean.length !== 6) return '#4f46e5';
+    var r = Math.max(0, Math.floor(parseInt(clean.substring(0, 2), 16) * 0.85));
+    var g = Math.max(0, Math.floor(parseInt(clean.substring(2, 4), 16) * 0.85));
+    var b = Math.max(0, Math.floor(parseInt(clean.substring(4, 6), 16) * 0.85));
+    var toHex = function(n) { var s = n.toString(16); return s.length === 1 ? '0' + s : s; };
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  }
+
+  // Update dynamic CSS variables in real time (for live previews and color pickers)
+  window.updateDynamicThemeColor = function(hex) {
+    if (!hex) return;
+    var root = document.documentElement;
+    var rgb = hexToRgb(hex);
+    var hover = hexToHover(hex);
+
+    root.style.setProperty('--primary', hex);
+    root.style.setProperty('--primary-rgb', rgb);
+    root.style.setProperty('--primary-hover', hover);
+    root.style.setProperty('--primary-glow', 'rgba(' + rgb + ', 0.35)');
+    root.style.setProperty('--primary-subtle', 'rgba(' + rgb + ', 0.12)');
+    root.style.setProperty('--mesh-color-1', 'rgba(' + rgb + ', 0.16)');
+    root.style.setProperty('--bs-primary', hex);
+    root.style.setProperty('--bs-primary-rgb', rgb);
+    root.style.setProperty('--bs-link-color', hex);
+    root.style.setProperty('--bs-link-hover-color', hover);
+
+    // Sync meta theme-color tag
+    var metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.setAttribute('content', hex);
+  };
+
+  // Global theme applicator (Dark / Light / System)
   window.applyThemeMode = function (theme) {
     var actualTheme = theme;
     if (theme === 'system') {
       actualTheme = getSystemTheme();
     }
-    
+
     document.documentElement.setAttribute('data-theme', actualTheme);
     localStorage.setItem(THEME_KEY, theme);
 
-    // Sync elements
-    var icon = document.getElementById('themeIcon');
-    if (icon) {
-      if (theme === 'dark') {
+    // Sync all theme icons (moon/sun/laptop)
+    var icons = document.querySelectorAll('#themeIcon, .theme-icon');
+    icons.forEach(function(icon) {
+      if (actualTheme === 'dark') {
         icon.className = 'bi bi-moon-fill text-primary';
-      } else if (theme === 'light') {
+      } else if (actualTheme === 'light') {
         icon.className = 'bi bi-sun-fill text-warning';
       } else {
         icon.className = 'bi bi-laptop text-info';
       }
-    }
-    
-    var label = document.getElementById('themeLabel');
-    if (label) {
-      label.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
-    }
+    });
+
+    // Sync all theme labels
+    var labels = document.querySelectorAll('#themeLabel, .theme-label');
+    labels.forEach(function(label) {
+      label.textContent = actualTheme.charAt(0).toUpperCase() + actualTheme.slice(1);
+    });
+
+    // Dispatch custom event for widgets/charts to adapt
+    try {
+      window.dispatchEvent(new CustomEvent('hms:themechange', { detail: { theme: actualTheme } }));
+    } catch (e) {}
   };
 
-  // Listen for system theme changes if set to 'system'
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-    if (localStorage.getItem(THEME_KEY) === 'system') {
-      window.applyThemeMode('system');
-    }
-  });
+  // Direct toggle between dark and light
+  window.themeToggleHandler = function() {
+    var current = document.documentElement.getAttribute('data-theme') || localStorage.getItem(THEME_KEY) || window.HMS_SERVER_DEFAULT_THEME || 'dark';
+    var target = (current === 'dark') ? 'light' : 'dark';
+    window.applyThemeMode(target);
+  };
 
-  // Apply immediately on load (no flash)
-  var savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
-  window.applyThemeMode(savedTheme);
+  // Listen for system preference changes
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      if (localStorage.getItem(THEME_KEY) === 'system') {
+        window.applyThemeMode('system');
+      }
+    });
+  }
 
+  // Initial setup: resolve stored preference or system default
+  var defaultTheme = window.HMS_SERVER_DEFAULT_THEME || 'dark';
+  var initialTheme = localStorage.getItem(THEME_KEY) || defaultTheme;
+  window.applyThemeMode(initialTheme);
+
+  // Bind click handlers to all theme toggle buttons across the DOM
   document.addEventListener('DOMContentLoaded', function () {
-    // Re-sync after DOM elements are fully loaded
-    window.applyThemeMode(localStorage.getItem(THEME_KEY) || 'dark');
+    window.applyThemeMode(localStorage.getItem(THEME_KEY) || defaultTheme);
+
+    var toggleButtons = document.querySelectorAll('#themeToggleBtn, .theme-toggle-btn');
+    toggleButtons.forEach(function(btn) {
+      btn.removeEventListener('click', window.themeToggleHandler);
+      btn.addEventListener('click', window.themeToggleHandler);
+    });
   });
 })();
+
 
 /* =========================================================
    HMS — AJAX Polling Engine with Exponential Backoff

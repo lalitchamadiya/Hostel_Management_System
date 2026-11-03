@@ -1880,6 +1880,20 @@ def system_settings_view(request):
 
             messages.success(request, "Global system settings updated successfully!")
 
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+
+                return JsonResponse({
+
+                    'status': 'success',
+
+                    'message': 'Global system settings updated successfully!',
+
+                    'theme_color': obj.theme_color,
+
+                    'dark_mode_default': obj.dark_mode_default,
+
+                })
+
             return redirect('system_settings_view')
 
     else:

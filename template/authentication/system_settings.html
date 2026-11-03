@@ -658,8 +658,26 @@
 
 document.addEventListener('DOMContentLoaded', function() {
 
-    const saveBtn = document.getElementById('save-all-settings-btn');
+    // Real-time live preview for Theme & Styling controls
+    const colorInput = document.querySelector('input[name="theme_color"]') || document.getElementById('id_theme_color');
+    if (colorInput) {
+        colorInput.addEventListener('input', function(e) {
+            if (typeof window.updateDynamicThemeColor === 'function') {
+                window.updateDynamicThemeColor(e.target.value);
+            }
+        });
+    }
 
+    const darkToggle = document.querySelector('input[name="dark_mode_default"]') || document.getElementById('id_dark_mode_default');
+    if (darkToggle) {
+        darkToggle.addEventListener('change', function(e) {
+            if (typeof window.applyThemeMode === 'function') {
+                window.applyThemeMode(e.target.checked ? 'dark' : 'light');
+            }
+        });
+    }
+
+    const saveBtn = document.getElementById('save-all-settings-btn');
     if (!saveBtn) return;
 
 
@@ -732,6 +750,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const activeTabId = activeTabEl ? activeTabEl.id.replace('tab-', '') : 'branding';
 
+            // Sync client theme preference on save
+            const darkToggleEl = document.querySelector('input[name="dark_mode_default"]') || document.getElementById('id_dark_mode_default');
+            if (darkToggleEl) {
+                localStorage.setItem('hms_theme', darkToggleEl.checked ? 'dark' : 'light');
+            }
             window.location.href = window.location.pathname + '?tab=' + activeTabId;
 
         })

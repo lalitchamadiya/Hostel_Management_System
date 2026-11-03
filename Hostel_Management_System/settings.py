@@ -209,8 +209,8 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 
-# Only enforce secure cookies over HTTPS when configured or explicitly enabled
-if not DEBUG and os.getenv('ENFORCE_SECURE_COOKIES', 'False').lower() == 'true':
+# Enforce secure cookies over HTTPS (auto-enabled on Vercel or when configured)
+if not DEBUG and (os.environ.get('VERCEL') or os.getenv('ENFORCE_SECURE_COOKIES', 'False').lower() == 'true'):
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
 

@@ -545,8 +545,9 @@ class GlobalThemeStylingTests(TestCase):
         res_login = self.client.get(reverse('login'))
         self.assertEqual(res_login.status_code, 200)
         self.assertContains(res_login, 'data-theme="light"')
-        self.assertContains(res_login, '--primary: #10b981')
-        self.assertContains(res_login, '--primary-rgb: 16, 185, 129')
+        self.assertContains(res_login, '--theme-hex: #10b981')
+        self.assertContains(res_login, '--theme-hex-rgb: 16, 185, 129')
+        self.assertContains(res_login, 'class="auth-page"')
 
         # Test Dark Mode Default with Indigo theme
         settings.theme_color = '#6366f1'
@@ -557,8 +558,8 @@ class GlobalThemeStylingTests(TestCase):
         res_dash = self.client.get(reverse('superadmin_dashboard'))
         self.assertEqual(res_dash.status_code, 200)
         self.assertContains(res_dash, 'data-theme="dark"')
-        self.assertContains(res_dash, '--primary: #6366f1')
-        self.assertContains(res_dash, '--primary-rgb: 99, 102, 241')
+        self.assertContains(res_dash, '--theme-hex: #6366f1')
+        self.assertContains(res_dash, '--theme-hex-rgb: 99, 102, 241')
 
     def test_ajax_theme_settings_save(self):
         self.client.force_login(self.superadmin)

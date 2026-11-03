@@ -44,16 +44,15 @@
     var rgb = hexToRgb(hex);
     var hover = hexToHover(hex);
 
+    root.style.setProperty('--theme-hex', hex);
+    root.style.setProperty('--theme-hex-rgb', rgb);
+    root.style.setProperty('--theme-hex-hover', hover);
+    root.style.setProperty('--theme-hex-glow', 'rgba(' + rgb + ', 0.35)');
+    root.style.setProperty('--theme-hex-subtle', 'rgba(' + rgb + ', 0.12)');
     root.style.setProperty('--primary', hex);
     root.style.setProperty('--primary-rgb', rgb);
     root.style.setProperty('--primary-hover', hover);
     root.style.setProperty('--primary-glow', 'rgba(' + rgb + ', 0.35)');
-    root.style.setProperty('--primary-subtle', 'rgba(' + rgb + ', 0.12)');
-    root.style.setProperty('--mesh-color-1', 'rgba(' + rgb + ', 0.16)');
-    root.style.setProperty('--bs-primary', hex);
-    root.style.setProperty('--bs-primary-rgb', rgb);
-    root.style.setProperty('--bs-link-color', hex);
-    root.style.setProperty('--bs-link-hover-color', hover);
 
     // Sync meta theme-color tag
     var metaTheme = document.querySelector('meta[name="theme-color"]');

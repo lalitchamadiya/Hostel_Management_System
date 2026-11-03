@@ -110,7 +110,7 @@ def student_profile_update(request):
         if form.is_valid():
             obj = form.save(commit=False)
             if 'photo' in request.FILES:
-                from authentication.views import file_to_base64
+                from hms.utils import file_to_base64
                 b64_str = file_to_base64(request.FILES['photo'])
                 if b64_str:
                     obj.photo_data = b64_str

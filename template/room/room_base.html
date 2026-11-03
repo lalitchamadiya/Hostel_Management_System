@@ -63,22 +63,26 @@
         letter-spacing: 0.05em;
     }
 
+    .stat-card-premium .icon-box-gradient {
+        margin-bottom: 0 !important;
+    }
+
     @media (max-width: 575.98px) {
         .icon-box-gradient {
-            width: 44px !important;
-            height: 44px !important;
-            font-size: 1.20rem !important;
-            margin-bottom: 0.75rem !important;
+            width: 40px !important;
+            height: 40px !important;
+            font-size: 1.15rem !important;
+            margin-bottom: 0 !important;
             border-radius: 0.75rem !important;
         }
         .stat-value {
-            font-size: 1.45rem !important;
+            font-size: 1.35rem !important;
         }
         .stat-label {
-            font-size: 0.72rem !important;
+            font-size: 0.70rem !important;
         }
         .stat-card-premium {
-            padding: 1.1rem !important;
+            padding: 0.85rem !important;
         }
     }
 
@@ -95,70 +99,82 @@
 
     {% include 'room/room_nav.html' %}
 
-    <div class="row g-4 mt-1">
+    <div class="row g-3 mt-1">
         <!-- Card 1: Total Buildings -->
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="glass-card stat-card-premium p-4 h-100">
-                <div class="icon-box-gradient grad-cyan">
+        <div class="col-12 col-sm-6 col-xl-2 col-lg-4">
+            <div class="glass-card stat-card-premium p-3 h-100 d-flex align-items-center gap-3">
+                <div class="icon-box-gradient grad-cyan flex-shrink-0 mb-0" style="width: 44px; height: 44px; border-radius: 12px; font-size: 1.25rem;">
                     <i class="bi bi-building"></i>
                 </div>
-                <div class="stat-value">{{ total_buildings|default:0 }}</div>
-                <div class="stat-label">Total Buildings</div>
+                <div class="min-w-0 flex-grow-1">
+                    <div class="stat-value fs-4 mb-0 fw-bold">{{ total_buildings|default:0 }}</div>
+                    <div class="stat-label text-truncate" style="font-size: 0.72rem; letter-spacing: 0.04em;">Total Buildings</div>
+                </div>
             </div>
         </div>
 
         <!-- Card 2: Total Rooms -->
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="glass-card stat-card-premium p-4 h-100">
-                <div class="icon-box-gradient grad-blue">
+        <div class="col-12 col-sm-6 col-xl-2 col-lg-4">
+            <div class="glass-card stat-card-premium p-3 h-100 d-flex align-items-center gap-3">
+                <div class="icon-box-gradient grad-blue flex-shrink-0 mb-0" style="width: 44px; height: 44px; border-radius: 12px; font-size: 1.25rem;">
                     <i class="bi bi-door-closed"></i>
                 </div>
-                <div class="stat-value">{{ total_availabel_room|default:0 }}</div>
-                <div class="stat-label">Total Rooms</div>
+                <div class="min-w-0 flex-grow-1">
+                    <div class="stat-value fs-4 mb-0 fw-bold">{{ total_availabel_room|default:0 }}</div>
+                    <div class="stat-label text-truncate" style="font-size: 0.72rem; letter-spacing: 0.04em;">Total Rooms</div>
+                </div>
             </div>
         </div>
 
         <!-- Card 3: Boys Wing -->
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="glass-card stat-card-premium p-4 h-100">
-                <div class="icon-box-gradient grad-purple">
+        <div class="col-12 col-sm-6 col-xl-2 col-lg-4">
+            <div class="glass-card stat-card-premium p-3 h-100 d-flex align-items-center gap-3">
+                <div class="icon-box-gradient grad-purple flex-shrink-0 mb-0" style="width: 44px; height: 44px; border-radius: 12px; font-size: 1.25rem;">
                     <i class="bi bi-person-standing"></i>
                 </div>
-                <div class="stat-value">{{ total_boys_rooms|default:0 }}</div>
-                <div class="stat-label">Boys Wing</div>
+                <div class="min-w-0 flex-grow-1">
+                    <div class="stat-value fs-4 mb-0 fw-bold">{{ total_boys_rooms|default:0 }}</div>
+                    <div class="stat-label text-truncate" style="font-size: 0.72rem; letter-spacing: 0.04em;">Boys Wing</div>
+                </div>
             </div>
         </div>
 
         <!-- Card 4: Girls Wing -->
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="glass-card stat-card-premium p-4 h-100">
-                <div class="icon-box-gradient grad-pink">
+        <div class="col-12 col-sm-6 col-xl-2 col-lg-4">
+            <div class="glass-card stat-card-premium p-3 h-100 d-flex align-items-center gap-3">
+                <div class="icon-box-gradient grad-pink flex-shrink-0 mb-0" style="width: 44px; height: 44px; border-radius: 12px; font-size: 1.25rem;">
                     <i class="bi bi-person-standing-dress"></i>
                 </div>
-                <div class="stat-value">{{ total_girls_rooms|default:0 }}</div>
-                <div class="stat-label">Girls Wing</div>
+                <div class="min-w-0 flex-grow-1">
+                    <div class="stat-value fs-4 mb-0 fw-bold">{{ total_girls_rooms|default:0 }}</div>
+                    <div class="stat-label text-truncate" style="font-size: 0.72rem; letter-spacing: 0.04em;">Girls Wing</div>
+                </div>
             </div>
         </div>
 
         <!-- Card 5: Allocated Beds -->
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="glass-card stat-card-premium p-4 h-100">
-                <div class="icon-box-gradient grad-green">
+        <div class="col-12 col-sm-6 col-xl-2 col-lg-4">
+            <div class="glass-card stat-card-premium p-3 h-100 d-flex align-items-center gap-3">
+                <div class="icon-box-gradient grad-green flex-shrink-0 mb-0" style="width: 44px; height: 44px; border-radius: 12px; font-size: 1.25rem;">
                     <i class="bi bi-check-all"></i>
                 </div>
-                <div class="stat-value">{{ total_allocated_beds|default:0 }}</div>
-                <div class="stat-label">Allocated</div>
+                <div class="min-w-0 flex-grow-1">
+                    <div class="stat-value fs-4 mb-0 fw-bold">{{ total_allocated_beds|default:0 }}</div>
+                    <div class="stat-label text-truncate" style="font-size: 0.72rem; letter-spacing: 0.04em;">Allocated</div>
+                </div>
             </div>
         </div>
 
         <!-- Card 6: Vacant Beds -->
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="glass-card stat-card-premium p-4 h-100">
-                <div class="icon-box-gradient grad-orange">
+        <div class="col-12 col-sm-6 col-xl-2 col-lg-4">
+            <div class="glass-card stat-card-premium p-3 h-100 d-flex align-items-center gap-3">
+                <div class="icon-box-gradient grad-orange flex-shrink-0 mb-0" style="width: 44px; height: 44px; border-radius: 12px; font-size: 1.25rem;">
                     <i class="bi bi-exclamation-square"></i>
                 </div>
-                <div class="stat-value">{{ total_unallocated_beds|default:0 }}</div>
-                <div class="stat-label">Vacant Beds</div>
+                <div class="min-w-0 flex-grow-1">
+                    <div class="stat-value fs-4 mb-0 fw-bold">{{ total_unallocated_beds|default:0 }}</div>
+                    <div class="stat-label text-truncate" style="font-size: 0.72rem; letter-spacing: 0.04em;">Vacant Beds</div>
+                </div>
             </div>
         </div>
     </div>

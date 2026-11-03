@@ -98,7 +98,7 @@ def create_student(request):
         if form.is_valid():
             student = form.save(commit=False)
             if 'photo' in request.FILES:
-                from authentication.views import file_to_base64
+                from hms.utils import file_to_base64
                 b64_str = file_to_base64(request.FILES['photo'])
                 if b64_str:
                     student.photo_data = b64_str
@@ -137,36 +137,50 @@ def update_student(request, pk):
     if request.method == 'POST':
         form = StudentForm(request.POST, request.FILES, instance=student)
         if form.is_valid():
-            student = form.save(commit=False)
-            if 'photo' in request.FILES:
-                from authentication.views import file_to_base64
-                b64_str = file_to_base64(request.FILES['photo'])
-                if b64_str:
-                    student.photo_data = b64_str
-            new_roll = form.cleaned_data['roll']
-            new_email = form.cleaned_data['email']
-            if student.user:
-                user_updated = False
-                if new_roll != student.user.username:
-                    if User.objects.filter(username=new_roll).exclude(pk=student.user.pk).exists():
-                        form.add_error('roll', 'Another user with this enrollment number already exists.')
-                        return render(request, 'student/update_student.html', {'form': form})
-                    student.user.username = new_roll
-                    user_updated = True
-                if new_email != student.user.email:
-                    if User.objects.filter(email=new_email).exclude(pk=student.user.pk).exists():
-                        form.add_error('email', 'Another user with this email already exists.')
-                        return render(request, 'student/update_student.html', {'form': form})
-                    student.user.email = new_email
-                    user_updated = True
-                if user_updated:
-                    student.user.save()
-            student.save()
-            messages.success(request, 'Student updated successfully.')
-            return redirect('student_list')
+            try:
+                student = form.save(commit=False)
+                if 'photo' in request.FILES:
+                    from hms.utils import file_to_base64
+                    b64_str = file_to_base64(request.FILES['photo'])
+                    if b64_str:
+                        student.photo_data = b64_str
+                new_roll = form.cleaned_data['roll']
+                new_email = form.cleaned_data['email']
+                
+                s_user = None
+                try:
+                    s_user = student.user
+                except Exception:
+                    s_user = None
+
+                if s_user:
+                    user_updated = False
+                    if new_roll != s_user.username:
+                        if User.objects.filter(username=new_roll).exclude(pk=s_user.pk).exists():
+                            form.add_error('roll', 'Another user with this enrollment number already exists.')
+                            return render(request, 'student/update_student.html', {'form': form, 'student': student})
+                        s_user.username = new_roll
+                        user_updated = True
+                    if new_email != s_user.email:
+                        if User.objects.filter(email=new_email).exclude(pk=s_user.pk).exists():
+                            form.add_error('email', 'Another user with this email already exists.')
+                            return render(request, 'student/update_student.html', {'form': form, 'student': student})
+                        s_user.email = new_email
+                        user_updated = True
+                    if user_updated:
+                        s_user.save()
+                student.save()
+                messages.success(request, 'Student updated successfully.')
+                return redirect('student_list')
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception("Error saving student profile: %s", e)
+                messages.error(request, f'Failed to update student profile: {str(e)}')
+                return render(request, 'student/update_student.html', {'form': form, 'student': student})
     else:
         form = StudentForm(instance=student)
-    return render(request, 'student/update_student.html', {'form': form})
+    return render(request, 'student/update_student.html', {'form': form, 'student': student})
+
 
 
 from django.http import JsonResponse

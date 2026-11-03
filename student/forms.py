@@ -63,8 +63,15 @@ class StudentForm(forms.ModelForm):
         if qs.exists():
             raise ValidationError("Email is already used by another student.")
         user_qs = User.objects.filter(email=email)
-        if self.instance.pk and self.instance.user:
-            user_qs = user_qs.exclude(pk=self.instance.user.pk)
+        user_pk = None
+        if self.instance.pk:
+            try:
+                if self.instance.user:
+                    user_pk = self.instance.user.pk
+            except Exception:
+                user_pk = None
+        if user_pk:
+            user_qs = user_qs.exclude(pk=user_pk)
         if user_qs.exists():
             raise ValidationError("A user with this email already exists.")
         return email
@@ -79,8 +86,15 @@ class StudentForm(forms.ModelForm):
         if qs.exists():
             raise ValidationError("Enrollment Number (Roll) is already used by another student.")
         user_qs = User.objects.filter(username=roll)
-        if self.instance.pk and self.instance.user:
-            user_qs = user_qs.exclude(pk=self.instance.user.pk)
+        user_pk = None
+        if self.instance.pk:
+            try:
+                if self.instance.user:
+                    user_pk = self.instance.user.pk
+            except Exception:
+                user_pk = None
+        if user_pk:
+            user_qs = user_qs.exclude(pk=user_pk)
         if user_qs.exists():
             raise ValidationError("A user with this Enrollment Number as username already exists.")
         return roll
@@ -130,4 +144,4 @@ class StudentSelfUpdateForm(StudentForm):
             'guardian_occupation', 'parent_email',
             'address', 'address_line_2', 'state', 'city', 'country', 'pincode',
             'emergency_name', 'emergency_relation', 'emergency_phone', 'emergency_alt_phone',
-        ]
+        ]

@@ -230,9 +230,13 @@ def room_allocate(request):
                 if bed_obj:
                     st_obj = Student.objects.filter(student_id=student_id).first()
                     if st_obj:
+                        existing_bed = Bed.objects.filter(student=st_obj).exclude(room=room_obj, bed_number=str(bed_num)).first()
+                        if existing_bed:
+                            messages.error(request, f'{st_obj.name} is already allocated to Room {existing_bed.room.room_number} Bed {existing_bed.bed_number}. Each student can only be allocated to one bed.')
+                            return redirect('room_allocate')
                         bed_obj.student = st_obj
                         bed_obj.save()
-                        messages.success(request, f'{st_obj.name} successfully allocated to Room #{room_obj.room_number} Bed #{bed_num}.')
+                        messages.success(request, f'{st_obj.name} successfully allocated to Room {room_obj.room_number} Bed {bed_num}.')
                         return redirect('student_allocated_view', room_id=room_obj.id)
 
         messages.error(request, 'Invalid room, bed, or student selection.')
@@ -899,14 +903,22 @@ def get_rooms_for_allocation(request):
 @login_required(login_url='/authentication/login')
 def get_beds_for_room(request):
     room_id = request.GET.get('room_id', '1')
-    room_info = Room.objects.filter(pk=room_id).prefetch_related('beds').first()
+    room_info = Room.objects.filter(pk=room_id).prefetch_related('beds', 'beds__student').first()
 
     beds_data = []
     if room_info:
         for b in room_info.beds.all():
+            st_data = None
+            if b.student:
+                st_data = {
+                    'id': b.student.student_id,
+                    'name': b.student.name,
+                    'roll': b.student.roll or f'{b.student.student_id}',
+                    'photo': b.student.photo_url,
+                }
             beds_data.append({
                 'bed_number': b.bed_number,
-                'student': b.student.student_id if b.student else None
+                'student': st_data
             })
     else:
         beds_data = [
@@ -925,16 +937,17 @@ def get_beds_for_room(request):
 def get_students_by_gender(request):
     room_gender = request.GET.get('room_gender', '')
     gender = 'Male' if 'boy' in room_gender.lower() else 'Female'
-    qs = Student.objects.filter(status='Active', gender=gender)
+    assigned_student_ids = Bed.objects.filter(student__isnull=False).values_list('student_id', flat=True)
+    qs = Student.objects.filter(status='Active', gender=gender).exclude(student_id__in=assigned_student_ids)
     students_data = [
         {
             'id': s.student_id,
             'name': s.name,
             'roll': s.roll or f'STU{s.student_id}',
             'phone': s.phone_number or '',
-            'photo': s.photo.url if (s.photo and hasattr(s.photo, 'url')) else '/static/image/User.jpg'
+            'photo': s.photo_url,
         }
-        for s in qs[:50]
+        for s in qs
     ]
     return JsonResponse({'students': students_data})
 
@@ -953,9 +966,9 @@ def search_unallocated_students(request):
             'name': s.name,
             'roll': s.roll or f'STU{s.student_id}',
             'phone': s.phone_number or '',
-            'photo': s.photo.url if (s.photo and hasattr(s.photo, 'url')) else '/static/image/User.jpg'
+            'photo': s.photo_url,
         }
-        for s in qs[:20]
+        for s in qs[:30]
     ]
     return JsonResponse({'students': students_data})
 
@@ -972,10 +985,13 @@ def allocate_bed_ajax(request):
             st_obj = Student.objects.filter(student_id=student_id).first()
 
             if bed_obj and st_obj:
+                existing_bed = Bed.objects.filter(student=st_obj).exclude(pk=bed_obj.pk).first()
+                if existing_bed:
+                    return JsonResponse({'status': 'error', 'message': f'{st_obj.name} is already allocated to Room {existing_bed.room.room_number} Bed {existing_bed.bed_number}. Each student can only be allocated to one bed.'}, status=400)
                 bed_obj.student = st_obj
                 bed_obj.save()
-                messages.success(request, f"{st_obj.name} successfully allocated to Room #{bed_obj.room.room_number} Bed #{bed_obj.bed_number}.")
-                return JsonResponse({'status': 'success', 'message': f'Allocated {st_obj.name} to Bed #{bed_obj.bed_number}'})
+                messages.success(request, f"{st_obj.name} successfully allocated to Room {bed_obj.room.room_number} Bed {bed_obj.bed_number}.")
+                return JsonResponse({'status': 'success', 'message': f'Allocated {st_obj.name} to Bed {bed_obj.bed_number}'})
             else:
                 return JsonResponse({'status': 'error', 'message': 'Invalid bed or student specified.'}, status=400)
         except Exception as e:

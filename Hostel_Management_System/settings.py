@@ -223,6 +223,7 @@ if os.environ.get('VERCEL') or not os.access(str(BASE_DIR), os.W_OK):
     MEDIA_ROOT = os.path.join(tempfile.gettempdir(), 'media')
 else:
     MEDIA_ROOT = BASE_DIR / 'media'
+os.makedirs(str(MEDIA_ROOT), exist_ok=True)
 
 # Standard Django console logging configurations for production environments
 LOGGING = {

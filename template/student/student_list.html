@@ -102,7 +102,6 @@
                                 </div>
                                 <div class="ms-3">
                                     <div class="fw-semibold text-dark">{{ student.name }}</div>
-                                    <div class="text-muted small">#{{ student.roll|slice:":6" }}...</div>
                                 </div>
                             </div>
                         </td>
@@ -123,18 +122,18 @@
                             {% endif %}
                         </td>
                         <td class="pe-4 py-2 text-end">
-                            <div class="d-flex justify-content-end gap-1">
-                                <a href="{% url 'view_student' student.pk %}" class="btn btn-light btn-sm rounded-circle d-flex align-items-center justify-content-center text-primary" style="width: 32px; height: 32px;" title="View Details">
-                                    <i class="bi bi-eye"></i>
+                            <div class="d-flex justify-content-end align-items-center gap-1.5 flex-nowrap">
+                                <a href="{% url 'view_student' student.pk %}" class="btn btn-sm rounded-circle d-inline-flex align-items-center justify-content-center text-primary" style="width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; background: rgba(13, 110, 253, 0.08); border: 1px solid rgba(13, 110, 253, 0.2);" title="View Details">
+                                    <i class="bi bi-eye" style="font-size: 0.85rem;"></i>
                                 </a>
                                 {% if request.user|has_element_perm:'btn_student_edit' %}
-                                <a href="{% url 'update_student' student.pk %}" class="btn btn-light btn-sm rounded-circle d-flex align-items-center justify-content-center text-warning" style="width: 32px; height: 32px;" title="Edit Record">
-                                    <i class="bi bi-pencil-square"></i>
+                                <a href="{% url 'update_student' student.pk %}" class="btn btn-sm rounded-circle d-inline-flex align-items-center justify-content-center text-warning" style="width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; background: rgba(255, 193, 7, 0.12); border: 1px solid rgba(255, 193, 7, 0.3);" title="Edit Record">
+                                    <i class="bi bi-pencil-square" style="font-size: 0.85rem;"></i>
                                 </a>
                                 {% endif %}
                                 {% if request.user|has_element_perm:'btn_student_delete' %}
-                                <button type="button" class="btn btn-light btn-sm rounded-circle d-flex align-items-center justify-content-center text-danger" style="width: 32px; height: 32px;" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ student.pk }}" title="Delete Record">
-                                    <i class="bi bi-trash"></i>
+                                <button type="button" class="btn btn-sm rounded-circle d-inline-flex align-items-center justify-content-center text-danger" style="width: 30px; height: 30px; min-width: 30px; min-height: 30px; padding: 0; background: rgba(220, 53, 69, 0.08); border: 1px solid rgba(220, 53, 69, 0.2);" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ student.pk }}" title="Delete Record">
+                                    <i class="bi bi-trash" style="font-size: 0.85rem;"></i>
                                 </button>
                                 {% endif %}
                             </div>

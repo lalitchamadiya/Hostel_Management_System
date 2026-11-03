@@ -337,7 +337,11 @@ class Student(models.Model):
             except Exception:
                 pass
 
-        super().save(*args, **kwargs)
+        try:
+            super().save(*args, **kwargs)
+        except (OSError, IOError):
+            self.photo = None
+            super().save(*args, **kwargs)
 
         # Sync photo_data to UserProfile if student is linked to a User
         if self.user and self.photo_data:

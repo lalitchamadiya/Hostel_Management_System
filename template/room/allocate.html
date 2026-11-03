@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     vacantCount++;
                     const opt = document.createElement('option');
                     opt.value = b.bed_number;
-                    opt.textContent = `Bed #${b.bed_number} (Available)`;
+                    opt.textContent = `Position ${b.bed_number} (Available)`;
                     bedSelect.appendChild(opt);
                 }
 
@@ -387,18 +387,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 `;
                 let rollHtml = `<span class="text-muted opacity-50 fw-bold">---</span>`;
                 if (b.student) {
+                    const photoSrc = b.student.photo || '/static/image/User.jpg';
                     residentHtml = `
                         <div class="d-flex align-items-center gap-2">
-                            <div class="flex-shrink-0" style="width: 32px; height: 32px;">
-                                <img src="${b.student.photo}" class="w-100 h-100 rounded-circle object-fit-cover shadow-sm">
+                            <div class="flex-shrink-0" style="width: 34px; height: 34px;">
+                                <img src="${photoSrc}" class="w-100 h-100 rounded-circle object-fit-cover shadow-sm border" onerror="this.onerror=null; this.src='/static/image/User.jpg';">
                             </div>
                             <div class="d-flex flex-column">
                                 <span class="fw-bold text-dark" style="font-size: 0.85rem;">${b.student.name}</span>
-                                <span class="text-success fw-bold" style="font-size: 0.65rem;">OCCUPIED</span>
+                                <span class="text-success fw-bold" style="font-size: 0.65rem;"><i class="bi bi-check-circle-fill me-1"></i>OCCUPIED</span>
                             </div>
                         </div>
                     `;
-                    rollHtml = `<span class="badge bg-light text-muted border px-3 rounded-pill fw-bold" style="font-size: 0.7rem;">${b.student.roll}</span>`;
+                    rollHtml = `<span class="badge bg-light text-dark border px-3 rounded-pill fw-bold" style="font-size: 0.72rem;">${b.student.roll}</span>`;
                 }
 
                 let bedCircleContent = '';
@@ -417,7 +418,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 <div class="rounded-circle d-flex flex-column align-items-center justify-content-center bg-white shadow-sm border text-dark" style="width:40px; height:40px; border-color: #cbd5e1 !important; flex-shrink: 0;">
                                     ${bedCircleContent}
                                 </div>
-                                <span class="fw-semibold text-dark">Position #${b.bed_number}</span>
+                                <span class="fw-semibold text-dark">Position ${b.bed_number}</span>
                             </div>
                         </td>
                         <td>${residentHtml}</td>

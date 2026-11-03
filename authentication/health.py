@@ -254,3 +254,4 @@ class SystemHealthService:
                 'consecutive_count': 0,
                 'health': health_result
             }
+

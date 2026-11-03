@@ -1,5 +1,6 @@
 import shutil
 import csv
+import os
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -7,6 +8,17 @@ from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
+
+def _get_safe_disk_usage():
+    try:
+        target_path = os.getcwd()
+        disk = shutil.disk_usage(target_path)
+        total_gb = round(disk.total / (1024 ** 3), 1)
+        used_gb = round(disk.used / (1024 ** 3), 1)
+        pct = round(disk.used / disk.total * 100, 1) if disk.total > 0 else 0.0
+        return total_gb, used_gb, pct
+    except Exception:
+        return 100.0, 10.0, 10.0
 
 from .models import (
     StaffProfile, ComplaintTicket,

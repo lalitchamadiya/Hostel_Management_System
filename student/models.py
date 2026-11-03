@@ -216,13 +216,30 @@ class Student(models.Model):
     def photo_url(self):
         try:
             val = getattr(self, 'photo_data', None)
-            if val:
+            if val and len(val) > 20:
                 return val
         except Exception:
             pass
         try:
-            if self.photo and hasattr(self.photo, 'url'):
-                return self.photo.url
+            if self.photo and hasattr(self.photo, 'name') and self.photo.name:
+                import os, base64, mimetypes
+                from django.conf import settings
+                full_path = os.path.join(str(settings.MEDIA_ROOT), str(self.photo.name))
+                if os.path.exists(full_path):
+                    try:
+                        with open(full_path, 'rb') as f:
+                            raw = f.read()
+                        if raw:
+                            mime, _ = mimetypes.guess_type(self.photo.name)
+                            mime = mime or 'image/jpeg'
+                            b64 = f"data:{mime};base64,{base64.b64encode(raw).decode('utf-8')}"
+                            self.photo_data = b64
+                            Student.objects.filter(pk=self.pk).update(photo_data=b64)
+                            return b64
+                    except Exception:
+                        pass
+                if hasattr(self.photo, 'url'):
+                    return self.photo.url
         except Exception:
             pass
         return '/static/image/User.jpg'
@@ -289,7 +306,49 @@ class Student(models.Model):
                 self.emergency_alt_phone = normalize_phone_number(self.emergency_alt_phone)
             except Exception:
                 pass
+
+        # Convert uploaded photo into persistent Base64 photo_data for PostgreSQL
+        if self.photo:
+            try:
+                if hasattr(self.photo, 'file'):
+                    import base64, mimetypes
+                    file_obj = self.photo.file
+                    file_obj.seek(0)
+                    raw_bytes = file_obj.read()
+                    file_obj.seek(0)
+                    if raw_bytes:
+                        mime_type, _ = mimetypes.guess_type(self.photo.name or '')
+                        if not mime_type or not mime_type.startswith('image/'):
+                            mime_type = 'image/jpeg'
+                        b64_str = base64.b64encode(raw_bytes).decode('utf-8')
+                        self.photo_data = f"data:{mime_type};base64,{b64_str}"
+                elif not self.photo_data and hasattr(self.photo, 'name') and self.photo.name:
+                    import os, base64, mimetypes
+                    from django.conf import settings
+                    full_path = os.path.join(str(settings.MEDIA_ROOT), str(self.photo.name))
+                    if os.path.exists(full_path):
+                        with open(full_path, 'rb') as f:
+                            raw_bytes = f.read()
+                        if raw_bytes:
+                            mime, _ = mimetypes.guess_type(self.photo.name)
+                            mime = mime or 'image/jpeg'
+                            b64_str = base64.b64encode(raw_bytes).decode('utf-8')
+                            self.photo_data = f"data:{mime};base64,{b64_str}"
+            except Exception:
+                pass
+
         super().save(*args, **kwargs)
+
+        # Sync photo_data to UserProfile if student is linked to a User
+        if self.user and self.photo_data:
+            try:
+                from authentication.models import UserProfile
+                profile, _ = UserProfile.objects.get_or_create(user=self.user)
+                if profile.photo_data != self.photo_data:
+                    profile.photo_data = self.photo_data
+                    profile.save(update_fields=['photo_data'])
+            except Exception:
+                pass
 
     @property
     def enrollmentNumber(self):

@@ -167,8 +167,8 @@
     <!-- Profile Hero Banner -->
     <div class="profile-hero mb-4">
         <div class="profile-hero-body">
-            <img src="{% if student.photo %}{{ student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}"
-                 class="avatar-ring" alt="{{ student.name }}">
+            <img src="{{ student.photo_url }}"
+                 class="avatar-ring" alt="{{ student.name }}" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
             <div class="hero-text ms-1">
                 <h2>{{ student.name }}</h2>
                 <div class="hero-meta">

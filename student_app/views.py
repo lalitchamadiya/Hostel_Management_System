@@ -108,7 +108,13 @@ def student_profile_update(request):
     if request.method == 'POST':
         form = StudentSelfUpdateForm(request.POST, request.FILES, instance=student)
         if form.is_valid():
-            form.save()
+            obj = form.save(commit=False)
+            if 'photo' in request.FILES:
+                from authentication.views import file_to_base64
+                b64_str = file_to_base64(request.FILES['photo'])
+                if b64_str:
+                    obj.photo_data = b64_str
+            obj.save()
             messages.success(request, 'Student updated successfully')
             return redirect('student_app:student_profile')
         else:

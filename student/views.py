@@ -36,6 +36,25 @@ def student_list(request):
     course = request.GET.get('course')
     status = request.GET.get('status')
     
+    # Attempt migrating any file-based student photos on disk to persistent Base64 in PostgreSQL
+    try:
+        import os, base64, mimetypes
+        from django.conf import settings as _settings
+        pending_students = Student.objects.filter(photo_data__isnull=True).exclude(photo='')
+        for s in pending_students[:10]:
+            if s.photo and hasattr(s.photo, 'name') and s.photo.name:
+                p = os.path.join(str(_settings.MEDIA_ROOT), str(s.photo.name))
+                if os.path.exists(p):
+                    with open(p, 'rb') as f:
+                        raw = f.read()
+                    if raw:
+                        mime, _ = mimetypes.guess_type(s.photo.name)
+                        mime = mime or 'image/jpeg'
+                        b64 = f"data:{mime};base64,{base64.b64encode(raw).decode('utf-8')}"
+                        Student.objects.filter(pk=s.pk).update(photo_data=b64)
+    except Exception:
+        pass
+
     students = Student.objects.select_related('user').all()
     
     if query:
@@ -78,6 +97,11 @@ def create_student(request):
         form = StudentForm(request.POST, request.FILES)
         if form.is_valid():
             student = form.save(commit=False)
+            if 'photo' in request.FILES:
+                from authentication.views import file_to_base64
+                b64_str = file_to_base64(request.FILES['photo'])
+                if b64_str:
+                    student.photo_data = b64_str
 
             roll = form.cleaned_data['roll']
             email = form.cleaned_data['email']
@@ -114,6 +138,11 @@ def update_student(request, pk):
         form = StudentForm(request.POST, request.FILES, instance=student)
         if form.is_valid():
             student = form.save(commit=False)
+            if 'photo' in request.FILES:
+                from authentication.views import file_to_base64
+                b64_str = file_to_base64(request.FILES['photo'])
+                if b64_str:
+                    student.photo_data = b64_str
             new_roll = form.cleaned_data['roll']
             new_email = form.cleaned_data['email']
             if student.user:

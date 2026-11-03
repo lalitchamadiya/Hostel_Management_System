@@ -98,7 +98,7 @@
                         <tr>
                             <td class="ps-4">
                                 <div class="d-flex align-items-center gap-3">
-                                    <img src="{% if leave.student.photo %}{{ leave.student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" class="student-avatar" alt="Avatar">
+                                    <img src="{{ leave.student.photo_url }}" class="student-avatar" alt="Avatar" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                                     <div class="d-flex flex-column">
                                         <span class="fw-bold" style="font-size:0.9rem; color:var(--text-main,#1e293b);">{{ leave.student.name }}</span>
                                         <span style="font-size:0.75rem; color:var(--text-muted,#64748b);">Roll: {{ leave.student.roll }}</span>

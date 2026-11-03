@@ -151,7 +151,7 @@
                 <div class="col-lg-2">
                     <label class="form-label d-block text-center">Photo</label>
                     <div class="photo-upload-compact mx-auto" onclick="document.getElementById('id_photo').click()">
-                        <img src="{% if student.photo %}{{ student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" id="photoPreview" class="w-100 h-100 object-fit-cover" alt="Preview">
+                        <img src="{{ student.photo_url }}" id="photoPreview" class="w-100 h-100 object-fit-cover" alt="Preview" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                         <input type="file" name="photo" id="id_photo" class="d-none" onchange="previewImage(this)">
                     </div>
                 </div>

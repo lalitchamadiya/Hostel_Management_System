@@ -207,8 +207,8 @@
             <div class="col-lg-6">
                 <div class="student-card">
                     <div class="d-flex align-items-start gap-3">
-                        <img src="{% if bed.student.photo %}{{ bed.student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}"
-                             class="student-avatar" alt="{{ bed.student.name }}">
+                        <img src="{{ bed.student.photo_url }}"
+                             class="student-avatar" alt="{{ bed.student.name }}" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                         <div class="flex-grow-1 min-w-0">
                             <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
                                 <div>

@@ -168,8 +168,8 @@
                     <h5 class="fw-bold mb-3"><i class="bi bi-person-badge-fill me-2 text-primary"></i>Current Resident Details</h5>
                     
                     <div class="d-flex align-items-center gap-3 mb-4 p-3 bg-light rounded-3">
-                        <img src="{% if student.photo %}{{ student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" 
-                             class="student-avatar-big" alt="{{ student.name }}">
+                        <img src="{{ student.photo_url }}" 
+                             class="student-avatar-big" alt="{{ student.name }}" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                         <div>
                             <h4 class="fw-bold text-dark mb-0">{{ student.name }}</h4>
                             <p class="text-muted mb-0 small">Roll: {{ student.roll }}</p>

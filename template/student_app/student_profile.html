@@ -114,7 +114,7 @@
         <div class="col-lg-3">
             <div class="glass-card p-4 text-center">
                 <div class="avatar-ring mb-4">
-                    <img src="{% if student.photo %}{{ student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" alt="Avatar">
+                    <img src="{{ student.photo_url }}" alt="Avatar" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                 </div>
                 <h4 class="fw-bold text-dark mb-1">{{ student.name }}</h4>
                 <div class="d-flex flex-column align-items-center gap-2 mt-2">

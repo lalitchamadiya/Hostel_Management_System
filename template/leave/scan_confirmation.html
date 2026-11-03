@@ -178,7 +178,7 @@
                 <p class="text-muted small mb-0">The gating checkout/checkin record has been updated successfully.</p>
             {% else %}
                 <span class="status-highlight status-valid mb-3"><i class="bi bi-shield-fill-check me-2"></i>Pass Active & Valid</span>
-                <img src="{% if student.photo %}{{ student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" class="large-avatar" alt="Student photo">
+                <img src="{{ student.photo_url }}" class="large-avatar" alt="Student photo" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                 <h4 class="fw-bold mb-1">{{ student.name }}</h4>
                 <span class="badge bg-light text-muted border px-3 rounded-pill fw-semibold" style="font-size: 0.75rem;">
                     {{ student.roll }}

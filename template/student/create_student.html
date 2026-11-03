@@ -151,7 +151,7 @@
                 <div class="col-lg-2">
                     <label class="form-label d-block text-center">Photo</label>
                     <div class="photo-upload-compact mx-auto" onclick="document.getElementById('id_photo').click()">
-                        <img src="{% if student.photo %}{{ student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" id="photoPreview" class="w-100 h-100 object-fit-cover {% if not student.photo %}d-none{% endif %}" alt="Preview">
+                        <img src="{{ student.photo_url }}" id="photoPreview" class="w-100 h-100 object-fit-cover {% if not student.photo and not student.photo_data %}d-none{% endif %}" alt="Preview" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                         <div id="uploadPlaceholder" class="{% if student.photo %}d-none{% endif %} text-center">
                             <i class="bi bi-camera fs-4 text-muted"></i>
                             <div style="font-size: 0.65rem;" class="fw-bold text-muted">UPLOAD</div>

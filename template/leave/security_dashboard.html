@@ -297,7 +297,7 @@
                     {% for leave in pending_exits %}
                     <div class="student-item">
                         <div class="d-flex gap-3">
-                            <img src="{% if leave.student.photo %}{{ leave.student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" class="small-avatar" alt="Avatar">
+                            <img src="{{ leave.student.photo_url }}" class="small-avatar" alt="Avatar" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                             <div class="flex-grow-1">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <h6 class="fw-bold mb-1 small">{{ leave.student.name }}</h6>
@@ -336,7 +336,7 @@
                     {% for leave in students_outside %}
                     <div class="student-item">
                         <div class="d-flex gap-3">
-                            <img src="{% if leave.student.photo %}{{ leave.student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" class="small-avatar" alt="Avatar">
+                            <img src="{{ leave.student.photo_url }}" class="small-avatar" alt="Avatar" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                             <div class="flex-grow-1">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <h6 class="fw-bold mb-1 small">{{ leave.student.name }}</h6>
@@ -375,7 +375,7 @@
                     {% for leave in returned_students %}
                     <div class="student-item">
                         <div class="d-flex gap-3">
-                            <img src="{% if leave.student.photo %}{{ leave.student.photo.url }}{% else %}{% static 'image/User.jpg' %}{% endif %}" class="small-avatar" alt="Avatar">
+                            <img src="{{ leave.student.photo_url }}" class="small-avatar" alt="Avatar" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                             <div class="flex-grow-1">
                                 <h6 class="fw-bold mb-1 small">{{ leave.student.name }}</h6>
                                 <div class="text-muted x-small mb-1">Returned: {{ leave.entry_time|date:"H:i" }} (Today)</div>

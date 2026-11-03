@@ -98,11 +98,7 @@
                         <td class="ps-4 py-2">
                             <div class="d-flex align-items-center">
                                 <div class="flex-shrink-0">
-                                    {% if student.photo %}
-                                    <img src="{{ student.photo.url }}" alt="{{ student.name }}" class="rounded-circle" style="width: 42px; height: 42px; object-fit: cover;">
-                                    {% else %}
-                                    <img src="{% static 'image/User.jpg' %}" alt="User Photo" class="rounded-circle" style="width: 42px; height: 42px; object-fit: cover;">
-                                    {% endif %}
+                                    <img src="{{ student.photo_url }}" alt="{{ student.name }}" class="rounded-circle" style="width: 42px; height: 42px; object-fit: cover;" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                                 </div>
                                 <div class="ms-3">
                                     <div class="fw-semibold text-dark">{{ student.name }}</div>

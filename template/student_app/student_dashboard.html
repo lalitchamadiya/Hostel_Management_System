@@ -125,13 +125,7 @@
                     <div class="pro-card border-0 shadow-sm p-4">
                         <div class="text-center mb-4">
                             <div class="position-relative d-inline-block">
-                                {% if student.photo %}
-                                    <img src="{{ student.photo.url }}" class="rounded-circle shadow-sm border border-3 border-white" style="width: 100px; height: 100px; object-fit: cover;">
-                                {% else %}
-                                    <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center border border-3 border-white shadow-sm" style="width: 100px; height: 100px;">
-                                        <span class="material-symbols-outlined text-primary fs-1">person</span>
-                                    </div>
-                                {% endif %}
+                                <img src="{{ student.photo_url }}" class="rounded-circle shadow-sm border border-3 border-white" style="width: 100px; height: 100px; object-fit: cover;" onerror="this.onerror=null; this.src='{% static 'image/User.jpg' %}';">
                                 <span class="position-absolute bottom-0 end-0 bg-success border border-white border-2 rounded-circle p-2 shadow-sm"></span>
                             </div>
                             <h5 class="mt-3 mb-1 fw-bold">{{ student.name }}</h5>

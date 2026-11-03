@@ -260,7 +260,12 @@ class AuditLog(models.Model):
         ('logout', 'User Logged Out'),
 
         ('gate_pass', 'Gate Pass Action'),
-
+        ('maintenance_enabled', 'Maintenance Enabled'),
+        ('maintenance_disabled', 'Maintenance Disabled'),
+        ('maintenance_auto_recovered', 'Maintenance Auto Recovered'),
+        ('health_check_failed', 'Health Check Failed'),
+        ('secure_access_login', 'Secure Access Login'),
+        ('security_violation', 'Security Violation Attempt'),
     ]
 
 
@@ -460,10 +465,43 @@ class SystemSettings(models.Model):
 
     language = models.CharField(max_length=10, default='en')
 
+    # System Maintenance & Recovery Settings
+    MAINTENANCE_STATUS_CHOICES = [
+        ('active', 'Maintenance Active'),
+        ('scheduled', 'Scheduled Maintenance'),
+        ('recovering', 'Recovering / Verifying'),
+        ('restored', 'Service Restored'),
+    ]
+
+    MAINTENANCE_TYPE_CHOICES = [
+        ('manual', 'Manual (Admin Controlled)'),
+        ('automatic', 'Automatic (System Managed)'),
+    ]
+
     maintenance_mode = models.BooleanField(default=False)
+    auto_recovery_enabled = models.BooleanField(default=True, help_text="Automatically disable maintenance when health checks pass consecutively")
+    maintenance_type = models.CharField(max_length=20, choices=MAINTENANCE_TYPE_CHOICES, default='manual')
+    maintenance_status = models.CharField(max_length=20, choices=MAINTENANCE_STATUS_CHOICES, default='active')
+    maintenance_title = models.CharField(max_length=150, default="System Under Maintenance", blank=True)
+    maintenance_reason = models.CharField(max_length=255, default="Scheduled Infrastructure & Security Maintenance", blank=True)
     maintenance_message = models.TextField(default="We are currently performing scheduled system maintenance and upgrades. We will be back online shortly.", blank=True)
-    estimated_restoration_time = models.CharField(max_length=100, default="Within 1 hour", blank=True)
+    maintenance_stage = models.CharField(max_length=150, default="System Diagnostics & Integrity Checks", blank=True)
+    maintenance_progress = models.IntegerField(default=50, help_text="Progress percentage (0-100)")
+    estimated_restoration_time = models.CharField(max_length=100, default="", blank=True)
+
+    # Health Monitoring & Recovery Configuration
+    health_check_interval = models.IntegerField(default=30, help_text="Health check interval in seconds")
+    consecutive_success_required = models.IntegerField(default=3, help_text="Number of consecutive successful checks required to declare system healthy")
+    consecutive_success_count = models.IntegerField(default=0, help_text="Current count of consecutive successful checks")
+    last_health_check_at = models.DateTimeField(null=True, blank=True)
+    last_health_status = models.TextField(blank=True, default="", help_text="Sanitized summary or JSON of latest health check results")
     maintenance_activated_at = models.DateTimeField(null=True, blank=True)
+    maintenance_restored_at = models.DateTimeField(null=True, blank=True)
+
+    # Support & Contact Details
+    support_email = models.EmailField(blank=True, default="support@hostel.com")
+    support_phone = models.CharField(max_length=30, blank=True, default="+1 (800) 555-0199")
+    helpdesk_url = models.CharField(max_length=255, blank=True, default="")
 
     system_version = models.CharField(max_length=20, default='1.0.0')
 

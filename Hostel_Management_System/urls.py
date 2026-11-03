@@ -1,8 +1,11 @@
 from django.contrib import admin
 from django.urls import path , include
 from django.views.generic import TemplateView
+from authentication.views import secure_admin_access_view, system_health_endpoint
 
 urlpatterns = [
+    path('system-control/secure-access/', secure_admin_access_view, name='secure_admin_access'),
+    path('system-control/health/', system_health_endpoint, name='system_health_endpoint'),
     path('' , include('hms.urls')),
     path('student/',include('student.urls')),
     path('room/', include('room.urls')),
@@ -16,7 +19,6 @@ urlpatterns = [
     path('manifest.json', TemplateView.as_view(template_name='manifest.json', content_type='application/json'), name='manifest_json'),
     path('service-worker.js', TemplateView.as_view(template_name='service-worker.js', content_type='application/javascript'), name='service_worker_js'),
 ]
-# Trigger URL conf reload for fee_transactions route
 
 from django.conf import settings
 from django.conf.urls.static import static
@@ -29,4 +31,3 @@ else:
     urlpatterns += [
         re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     ]
-

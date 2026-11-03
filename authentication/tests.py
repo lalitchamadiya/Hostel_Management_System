@@ -731,3 +731,249 @@ class SystemSettingsAdvancedFeaturesTests(TestCase):
         self.client.force_login(self.student_user)
         res_restored = self.client.get(reverse('student_app:student_dashboard'))
         self.assertEqual(res_restored.status_code, 200)
+
+from unittest.mock import patch
+from authentication.health import SystemHealthService
+from authentication.models import AuditLog
+
+class MaintenanceModeComprehensiveTests(TestCase):
+    def setUp(self):
+        from student.models import Student
+        self.superadmin_role = Role.objects.create(name='Super Admin', description='Super Admin Role')
+        self.superadmin = User.objects.create_superuser('maintsuper', 'maintsuper@test.com', 'SuperPass123!')
+        UserProfile.objects.create(user=self.superadmin, role=self.superadmin_role)
+
+        self.student_role = Role.objects.create(name='Student', description='Student Role')
+        self.student_user = User.objects.create_user('maintstudent', 'maintstudent@test.com', 'StudPass123!')
+        self.student_profile = UserProfile.objects.create(user=self.student_user, role=self.student_role)
+        self.student = Student.objects.create(
+            user=self.student_user,
+            name='Maint Student',
+            email='maintstudent@test.com',
+            gender='Female'
+        )
+
+        self.staff_role = Role.objects.create(name='Staff', description='Staff Role')
+        self.staff_user = User.objects.create_user('maintstaff', 'maintstaff@test.com', 'StaffPass123!')
+        UserProfile.objects.create(user=self.staff_user, role=self.staff_role)
+
+        self.settings = SystemSettings.get_settings()
+        self.settings.maintenance_mode = False
+        self.settings.auto_recovery_enabled = True
+        self.settings.maintenance_type = 'automatic'
+        self.settings.consecutive_success_required = 3
+        self.settings.consecutive_success_count = 0
+        self.settings.estimated_restoration_time = "3600"
+        self.settings.save()
+
+    def test_01_super_admin_manually_enables_maintenance(self):
+        """Scenario 1: Super Admin manually enables maintenance mode via Secure Access route."""
+        self.client.force_login(self.superadmin)
+        res = self.client.post('/system-control/secure-access/', {'action': 'toggle_maintenance'})
+        self.assertEqual(res.status_code, 302)
+        
+        self.settings.refresh_from_db()
+        self.assertTrue(self.settings.maintenance_mode)
+        self.assertEqual(self.settings.maintenance_status, 'active')
+        
+        # Verify AuditLog created
+        log = AuditLog.objects.filter(action='maintenance_enabled').first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.actor, self.superadmin)
+
+    def test_02_ordinary_users_cannot_access_pages_or_apis(self):
+        """Scenario 2 & 12: Ordinary users blocked with 503 and Retry-After header; APIs receive 503 JSON."""
+        self.settings.maintenance_mode = True
+        self.settings.estimated_restoration_time = "3600"
+        self.settings.save()
+
+        # Regular student receives 503
+        self.client.force_login(self.student_user)
+        res_page = self.client.get('/student_app/dashboard/')
+        self.assertEqual(res_page.status_code, 503)
+        self.assertEqual(res_page['Retry-After'], '3600')
+        self.assertContains(res_page, 'System Under Maintenance', status_code=503)
+
+        # AJAX / API request receives 503 JSON
+        res_api = self.client.get('/student_app/dashboard/', HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res_api.status_code, 503)
+        self.assertEqual(res_api.json().get('status'), 'maintenance')
+        self.assertEqual(res_api['Retry-After'], '3600')
+
+    def test_03_hidden_super_admin_route_available_and_secured(self):
+        """Scenario 3: Hidden route /system-control/secure-access/ is accessible to Super Admin and protected."""
+        self.settings.maintenance_mode = True
+        self.settings.save()
+
+        # Authenticated Super Admin gets full command center
+        self.client.force_login(self.superadmin)
+        res = self.client.get('/system-control/secure-access/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Super Admin Maintenance Command Center')
+
+        # Unauthenticated visitor gets clean login form
+        self.client.logout()
+        res_anon = self.client.get('/system-control/secure-access/')
+        self.assertEqual(res_anon.status_code, 200)
+        self.assertContains(res_anon, 'Super Admin Access')
+
+    def test_04_unauthorized_users_cannot_bypass_maintenance(self):
+        """Scenario 4: Non-superadmin authenticated users cannot access hidden route or bypass maintenance."""
+        self.settings.maintenance_mode = True
+        self.settings.save()
+
+        # Student accessing hidden route -> 403 Forbidden
+        self.client.force_login(self.student_user)
+        res_student = self.client.get('/system-control/secure-access/')
+        self.assertEqual(res_student.status_code, 403)
+        self.assertContains(res_student, 'Access Denied', status_code=403)
+
+        # Staff accessing hidden route -> 403 Forbidden
+        self.client.force_login(self.staff_user)
+        res_staff = self.client.get('/system-control/secure-access/')
+        self.assertEqual(res_staff.status_code, 403)
+
+        # Security violation logged
+        violation_log = AuditLog.objects.filter(action='security_violation').first()
+        self.assertIsNotNone(violation_log)
+
+    def test_05_pending_migrations_block_recovery(self):
+        """Scenario 5: When a migration is running or pending, health check fails and blocks recovery."""
+        self.settings.maintenance_mode = True
+        self.settings.auto_recovery_enabled = True
+        self.settings.save()
+
+        with patch('authentication.health.MigrationExecutor') as MockExecutor:
+            mock_inst = MockExecutor.return_value
+            mock_inst.loader.graph.leaf_nodes.return_value = []
+            # Simulate 2 pending migrations in the migration plan
+            mock_inst.migration_plan.return_value = [('authentication', '0099_fake_migration'), ('authentication', '0100_fake_migration')]
+
+            mig_check = SystemHealthService.check_migrations()
+            self.assertFalse(mig_check['passed'])
+            self.assertEqual(mig_check['pending_count'], 2)
+
+            res = SystemHealthService.evaluate_and_recover(trigger='auto')
+            self.assertFalse(res['recovered'])
+            self.settings.refresh_from_db()
+            self.assertTrue(self.settings.maintenance_mode)
+            self.assertEqual(self.settings.consecutive_success_count, 0)
+
+    def test_06_critical_health_check_failure_blocks_recovery(self):
+        """Scenario 6: A critical health failure resets consecutive count and retains maintenance."""
+        self.settings.maintenance_mode = True
+        self.settings.consecutive_success_count = 2
+        self.settings.save()
+
+        with patch.object(SystemHealthService, 'check_database') as mock_db:
+            mock_db.return_value = {
+                'name': 'Database Connectivity',
+                'status': 'unhealthy',
+                'passed': False,
+                'message': 'Simulated connection timeout'
+            }
+            res = SystemHealthService.evaluate_and_recover(trigger='auto')
+            self.assertFalse(res['recovered'])
+            self.settings.refresh_from_db()
+            self.assertTrue(self.settings.maintenance_mode)
+            self.assertEqual(self.settings.consecutive_success_count, 0)
+
+    def test_07_and_08_automatic_recovery_when_healthy_and_enabled(self):
+        """Scenarios 7 & 8: Consecutive passes reach threshold; maintenance automatically turns OFF."""
+        self.settings.maintenance_mode = True
+        self.settings.auto_recovery_enabled = True
+        self.settings.consecutive_success_required = 3
+        self.settings.consecutive_success_count = 0
+        self.settings.save()
+
+        with patch.object(SystemHealthService, 'perform_full_health_check') as mock_health:
+            mock_health.return_value = {
+                'healthy': True,
+                'status': 'healthy',
+                'timestamp': '2026-11-03T12:00:00Z',
+                'checks': [{'name': 'Test', 'passed': True, 'message': 'OK'}],
+                'summary': 'All operational'
+            }
+
+            # Check 1: Count becomes 1, maintenance remains True
+            res1 = SystemHealthService.evaluate_and_recover(trigger='auto')
+            self.assertFalse(res1['recovered'])
+            self.settings.refresh_from_db()
+            self.assertEqual(self.settings.consecutive_success_count, 1)
+            self.assertTrue(self.settings.maintenance_mode)
+
+            # Check 2: Count becomes 2, maintenance remains True
+            res2 = SystemHealthService.evaluate_and_recover(trigger='auto')
+            self.assertFalse(res2['recovered'])
+            self.settings.refresh_from_db()
+            self.assertEqual(self.settings.consecutive_success_count, 2)
+            self.assertTrue(self.settings.maintenance_mode)
+
+            # Check 3: Threshold reached (3/3) -> Automatically recovers and disables maintenance!
+            res3 = SystemHealthService.evaluate_and_recover(trigger='auto')
+            self.assertTrue(res3['recovered'])
+            self.settings.refresh_from_db()
+            self.assertFalse(self.settings.maintenance_mode)
+            self.assertEqual(self.settings.maintenance_status, 'restored')
+            self.assertIsNotNone(self.settings.maintenance_restored_at)
+
+            # AuditLog verified
+            rec_log = AuditLog.objects.filter(action='maintenance_auto_recovered').first()
+            self.assertIsNotNone(rec_log)
+
+    def test_09_maintenance_remains_active_when_auto_recovery_disabled(self):
+        """Scenario 9: Maintenance remains active when auto-recovery is disabled even when healthy."""
+        self.settings.maintenance_mode = True
+        self.settings.auto_recovery_enabled = False
+        self.settings.consecutive_success_required = 2
+        self.settings.consecutive_success_count = 0
+        self.settings.save()
+
+        with patch.object(SystemHealthService, 'perform_full_health_check') as mock_health:
+            mock_health.return_value = {
+                'healthy': True,
+                'status': 'healthy',
+                'timestamp': '2026-11-03T12:00:00Z',
+                'checks': [{'name': 'Test', 'passed': True, 'message': 'OK'}],
+                'summary': 'All operational'
+            }
+            # Run 5 consecutive checks
+            for _ in range(5):
+                SystemHealthService.evaluate_and_recover(trigger='auto')
+
+            self.settings.refresh_from_db()
+            # Maintenance mode MUST remain True because auto_recovery_enabled is False!
+            self.assertTrue(self.settings.maintenance_mode)
+
+    def test_10_application_remains_in_maintenance_across_restart(self):
+        """Scenario 10: Maintenance state is persistently stored in DB and preserved across fresh queries."""
+        self.settings.maintenance_mode = True
+        self.settings.maintenance_title = "Cluster Overhaul"
+        self.settings.save()
+
+        # Simulate fresh process query
+        fresh_settings = SystemSettings.objects.get(pk=1)
+        self.assertTrue(fresh_settings.maintenance_mode)
+        self.assertEqual(fresh_settings.maintenance_title, "Cluster Overhaul")
+
+    def test_11_original_destination_url_works_after_service_restoration(self):
+        """Scenario 11: Destination URL is preserved in cookie and redirected after service restored."""
+        self.settings.maintenance_mode = True
+        self.settings.save()
+
+        # Visit protected student dashboard during maintenance
+        res_maint = self.client.get('/student_app/dashboard/')
+        self.assertEqual(res_maint.status_code, 503)
+        self.assertIn('pre_maintenance_url', res_maint.cookies)
+        self.assertEqual(res_maint.cookies['pre_maintenance_url'].value, '/student_app/dashboard/')
+
+        # Restore maintenance
+        self.settings.maintenance_mode = False
+        self.settings.save()
+
+        # User returns to homepage '/' with cookie set
+        self.client.force_login(self.student_user)
+        self.client.cookies['pre_maintenance_url'] = '/student_app/dashboard/'
+        res_restored = self.client.get('/')
+        self.assertEqual(res_restored.status_code, 302)
+        self.assertEqual(res_restored.url, '/student_app/dashboard/')

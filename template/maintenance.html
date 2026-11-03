@@ -1,11 +1,11 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en" data-theme="{{ system_settings.dark_mode_default|yesno:'dark,light' }}">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="refresh" content="30">
-    <title>System Maintenance | {{ system_settings.system_name|default:"Apex Hostel" }}</title>
+    <meta http-equiv="refresh" content="{{ system_settings.health_check_interval|default:30 }}">
+    <title>{{ maintenance_title|default:"System Under Maintenance" }} | {{ system_settings.system_name|default:"Hostel Management" }}</title>
     
     {% if system_settings.favicon_url %}
     <link rel="icon" href="{{ system_settings.favicon_url }}">
@@ -14,37 +14,49 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
 
     <style>
         :root {
             --theme-hex: {{ system_settings.theme_color|default:'#6366f1' }};
             --theme-hex-rgb: {{ system_settings.theme_color_rgb|default:'99, 102, 241' }};
-            --theme-hex-hover: {{ system_settings.theme_color_hover|default:'#4f46e5' }};
+            --bg-base: #07090e;
+            --surface-card: rgba(15, 23, 42, 0.94);
+            --border-card: rgba(255, 255, 255, 0.12);
+            --text-heading: #f8fafc;
+            --text-body: #cbd5e1;
+            --text-muted-custom: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
             font-family: 'Outfit', sans-serif;
-            background: radial-gradient(circle at 50% 20%, rgba(var(--theme-hex-rgb), 0.12), transparent 70%), #0b0f19;
-            color: #f8fafc;
+            background: radial-gradient(circle at 50% 15%, rgba(var(--theme-hex-rgb), 0.18), transparent 60%),
+                        radial-gradient(circle at 80% 85%, rgba(14, 165, 233, 0.08), transparent 50%),
+                        var(--bg-base);
+            color: var(--text-body);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0;
-            padding: 20px;
+            padding: 24px 16px;
         }
 
         .maintenance-card {
-            background: rgba(17, 24, 39, 0.88);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 24px;
-            max-width: 580px;
+            background: var(--surface-card);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border-card);
+            border-radius: 28px;
+            max-width: 660px;
             width: 100%;
-            padding: 40px 32px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            padding: 44px 36px;
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.85),
+                        0 0 0 1px rgba(255, 255, 255, 0.06);
             text-align: center;
             position: relative;
             overflow: hidden;
@@ -57,144 +69,412 @@
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, var(--theme-hex), #f59e0b, var(--theme-hex));
+            {% if maintenance_status == 'restored' %}
+            background: linear-gradient(90deg, #10b981, #059669, #10b981);
+            {% elif maintenance_status == 'recovering' %}
+            background: linear-gradient(90deg, #8b5cf6, #ec4899, #8b5cf6);
+            {% elif maintenance_status == 'scheduled' %}
+            background: linear-gradient(90deg, #0ea5e9, #38bdf8, #0ea5e9);
+            {% else %}
+            background: linear-gradient(90deg, #f59e0b, #ef4444, #f59e0b);
+            {% endif %}
         }
 
         .maintenance-icon-wrap {
-            width: 90px;
-            height: 90px;
+            width: 96px;
+            height: 96px;
             border-radius: 50%;
-            background: rgba(245, 158, 11, 0.12);
-            border: 2px dashed rgba(245, 158, 11, 0.4);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 24px;
+            position: relative;
+            {% if maintenance_status == 'restored' %}
+            background: rgba(16, 185, 129, 0.15);
+            border: 2px dashed rgba(16, 185, 129, 0.5);
+            color: #34d399;
+            {% elif maintenance_status == 'recovering' %}
+            background: rgba(139, 92, 246, 0.15);
+            border: 2px dashed rgba(139, 92, 246, 0.5);
+            color: #a78bfa;
+            animation: pulse-recovering 2s infinite ease-in-out;
+            {% elif maintenance_status == 'scheduled' %}
+            background: rgba(14, 165, 233, 0.15);
+            border: 2px dashed rgba(14, 165, 233, 0.5);
+            color: #38bdf8;
             animation: pulse-slow 3s infinite ease-in-out;
+            {% else %}
+            background: rgba(245, 158, 11, 0.15);
+            border: 2px dashed rgba(245, 158, 11, 0.5);
+            color: #fbbf24;
+            animation: pulse-slow 3s infinite ease-in-out;
+            {% endif %}
         }
 
         .maintenance-icon-wrap i {
-            font-size: 42px;
-            color: #f59e0b;
+            font-size: 44px;
         }
 
         @keyframes pulse-slow {
             0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3); }
-            50% { transform: scale(1.04); box-shadow: 0 0 24px 6px rgba(245, 158, 11, 0.15); }
+            50% { transform: scale(1.05); box-shadow: 0 0 30px 8px rgba(245, 158, 11, 0.2); }
+        }
+
+        @keyframes pulse-recovering {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+            50% { transform: scale(1.06); box-shadow: 0 0 32px 10px rgba(139, 92, 246, 0.25); }
         }
 
         .badge-status {
-            background: rgba(245, 158, 11, 0.16);
-            color: #fbbf24;
-            border: 1px solid rgba(245, 158, 11, 0.3);
             border-radius: 50rem;
-            padding: 6px 16px;
-            font-size: 0.8rem;
-            font-weight: 600;
+            padding: 7px 18px;
+            font-size: 0.82rem;
+            font-weight: 700;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            margin-bottom: 16px;
+            gap: 8px;
+            margin-bottom: 20px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            {% if maintenance_status == 'restored' %}
+            background: rgba(16, 185, 129, 0.16);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            {% elif maintenance_status == 'recovering' %}
+            background: rgba(139, 92, 246, 0.18);
+            color: #c4b5fd;
+            border: 1px solid rgba(139, 92, 246, 0.45);
+            {% elif maintenance_status == 'scheduled' %}
+            background: rgba(14, 165, 233, 0.16);
+            color: #7dd3fc;
+            border: 1px solid rgba(14, 165, 233, 0.4);
+            {% else %}
+            background: rgba(245, 158, 11, 0.16);
+            color: #fde047;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            {% endif %}
         }
 
-        .badge-status::before {
-            content: '';
+        .badge-status-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background-color: #f59e0b;
             display: inline-block;
+            {% if maintenance_status == 'restored' %}
+            background-color: #10b981;
+            {% elif maintenance_status == 'recovering' %}
+            background-color: #8b5cf6;
+            animation: blink 1s infinite;
+            {% elif maintenance_status == 'scheduled' %}
+            background-color: #0ea5e9;
+            animation: blink 1.5s infinite;
+            {% else %}
+            background-color: #f59e0b;
             animation: blink 1.2s infinite;
+            {% endif %}
         }
 
         @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.85); }
         }
 
-        .eta-card {
-            background: rgba(255, 255, 255, 0.04);
+        .title-text {
+            color: var(--text-heading);
+            font-weight: 800;
+            font-size: 1.85rem;
+            letter-spacing: -0.025em;
+            margin-bottom: 12px;
+        }
+
+        .description-text {
+            color: var(--text-body);
+            font-size: 1.02rem;
+            line-height: 1.65;
+            margin-bottom: 24px;
+        }
+
+        .info-pill-container {
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 14px;
+            border-radius: 16px;
             padding: 16px 20px;
-            margin: 24px 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            margin-bottom: 24px;
+            text-align: left;
         }
 
-        .btn-theme {
-            background: linear-gradient(135deg, var(--theme-hex) 0%, var(--theme-hex-hover) 100%);
-            border: none;
-            color: #ffffff !important;
-            font-weight: 600;
-            padding: 10px 24px;
-            border-radius: 12px;
-            box-shadow: 0 4px 14px rgba(var(--theme-hex-rgb), 0.35);
+        .progress-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        .custom-progress {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 50rem;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .custom-progress-bar {
+            height: 100%;
+            border-radius: 50rem;
+            transition: width 0.6s ease;
+            {% if maintenance_status == 'restored' %}
+            background: linear-gradient(90deg, #10b981, #34d399);
+            {% elif maintenance_status == 'recovering' %}
+            background: linear-gradient(90deg, #8b5cf6, #c084fc);
+            {% else %}
+            background: linear-gradient(90deg, var(--theme-hex), #f59e0b);
+            {% endif %}
+        }
+
+        .stage-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            font-size: 0.72rem;
+            text-align: center;
+        }
+
+        .stage-step {
+            padding: 6px 4px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: var(--text-muted-custom);
             transition: all 0.2s ease;
-            text-decoration: none;
-            display: inline-block;
         }
 
-        .btn-theme:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(var(--theme-hex-rgb), 0.45);
+        .stage-step.active {
+            background: rgba(var(--theme-hex-rgb), 0.16);
+            border-color: rgba(var(--theme-hex-rgb), 0.4);
             color: #ffffff;
+            font-weight: 600;
+        }
+
+        .stage-step.completed {
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: #34d399;
+        }
+
+        .support-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 12px 18px;
+            margin-bottom: 24px;
+            font-size: 0.85rem;
+            color: var(--text-body);
+        }
+
+        .support-box a {
+            color: #93c5fd;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .support-box a:hover {
+            text-decoration: underline;
+        }
+
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            color: #ffffff !important;
+            padding: 11px 28px;
+            font-weight: 600;
+            border-radius: 12px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.28);
+            transform: translateY(-2px);
+            color: #ffffff;
+        }
+
+        .footer-note {
+            color: var(--text-muted-custom);
+            font-size: 0.78rem;
+            margin-top: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 18px;
+        }
+
+        @media (max-width: 576px) {
+            .maintenance-card {
+                padding: 32px 20px;
+                border-radius: 20px;
+            }
+            .title-text {
+                font-size: 1.5rem;
+            }
+            .stage-steps {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
     </style>
 </head>
 <body>
     <div class="maintenance-card">
-        <!-- Brand -->
+        <!-- Brand Identity Header -->
         <div class="d-flex align-items-center justify-content-center gap-2 mb-3">
             {% if system_settings.favicon_url %}
-            <img src="{{ system_settings.favicon_url }}" alt="Logo" style="height: 38px; width: 38px; object-fit: contain;" class="rounded">
+            <img src="{{ system_settings.favicon_url }}" alt="Favicon" style="height: 36px; width: 36px; object-fit: contain;" class="rounded">
             {% elif system_settings.logo_url %}
-            <img src="{{ system_settings.logo_url }}" alt="Logo" style="height: 38px; max-width: 60px; object-fit: contain;" class="rounded">
+            <img src="{{ system_settings.logo_url }}" alt="Logo" style="height: 36px; max-width: 60px; object-fit: contain;" class="rounded">
             {% endif %}
-            <h5 class="fw-bold mb-0 text-white">{{ system_settings.system_name|default:"Apex Hostel Management System" }}</h5>
+            <h5 class="fw-bold mb-0" style="color: #ffffff; letter-spacing: -0.01em;">
+                {{ system_settings.system_name|default:"Apex Hostel" }}
+            </h5>
         </div>
 
+        <!-- Animated Center Icon -->
         <div class="maintenance-icon-wrap">
+            {% if maintenance_status == 'restored' %}
+            <i class="bi bi-check-circle-fill"></i>
+            {% elif maintenance_status == 'recovering' %}
+            <i class="bi bi-shield-check"></i>
+            {% elif maintenance_status == 'scheduled' %}
+            <i class="bi bi-calendar2-week"></i>
+            {% else %}
             <i class="bi bi-tools"></i>
+            {% endif %}
         </div>
 
+        <!-- Dynamic Status Badge -->
         <div>
-            <span class="badge-status">HTTP 503 • MAINTENANCE ACTIVE</span>
+            <span class="badge-status">
+                <span class="badge-status-dot"></span>
+                {% if maintenance_status == 'restored' %}
+                SERVICE RESTORED &bull; READY
+                {% elif maintenance_status == 'recovering' %}
+                RECOVERING &bull; VERIFYING HEALTH
+                {% elif maintenance_status == 'scheduled' %}
+                SCHEDULED MAINTENANCE
+                {% else %}
+                MAINTENANCE ACTIVE &bull; HTTP 503
+                {% endif %}
+            </span>
         </div>
 
-        <h2 class="fw-bold mb-3" style="letter-spacing: -0.02em;">System Under Maintenance</h2>
+        <!-- Main Title & Reason -->
+        <h2 class="title-text">{{ maintenance_title|default:"System Under Maintenance" }}</h2>
 
-        <p class="text-muted mb-4" style="font-size: 0.95rem; line-height: 1.6;">
+        {% if maintenance_reason %}
+        <div class="mb-3">
+            <span class="badge bg-secondary bg-opacity-25 text-light px-3 py-1.5 rounded-pill" style="font-size: 0.82rem; border: 1px solid rgba(255,255,255,0.1);">
+                <i class="bi bi-info-circle me-1.5 text-warning"></i>Reason: {{ maintenance_reason }}
+            </span>
+        </div>
+        {% endif %}
+
+        <!-- Detailed Description -->
+        <p class="description-text">
             {{ maintenance_message|default:"We are currently performing scheduled maintenance to upgrade our infrastructure and improve security. We will be back online shortly." }}
         </p>
 
-        <!-- Estimated Restoration Time -->
-        <div class="eta-card text-start">
-            <div>
-                <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.05em;">Estimated Restoration</small>
-                <span class="fw-bold text-white fs-6">{{ estimated_restoration_time|default:"Within 1 hour" }}</span>
-            </div>
-            <div class="text-end">
-                <small class="text-muted d-block" style="font-size: 0.72rem;">Status updates</small>
-                <span class="badge bg-secondary bg-opacity-25 text-light" style="font-size: 0.7rem;">Auto-checking every 30s</span>
+        <!-- Restoration & Timeline Information -->
+        <div class="info-pill-container">
+            <div class="row g-3 align-items-center">
+                <div class="col-sm-6">
+                    <small class="text-uppercase fw-bold d-block" style="color: var(--text-muted-custom); font-size: 0.7rem; letter-spacing: 0.05em;">
+                        Estimated Restoration
+                    </small>
+                    <span class="fw-bold fs-6 text-white">
+                        {% if estimated_restoration_time %}
+                        {{ estimated_restoration_time }}
+                        {% else %}
+                        Active System Verification
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="col-sm-6 text-sm-end">
+                    <small class="text-uppercase fw-bold d-block" style="color: var(--text-muted-custom); font-size: 0.7rem; letter-spacing: 0.05em;">
+                        {% if last_health_check_at %}Last Checked{% elif maintenance_activated_at %}Started At{% else %}Monitoring{% endif %}
+                    </small>
+                    <span class="badge bg-dark bg-opacity-50 text-light border border-secondary border-opacity-25" style="font-size: 0.76rem;">
+                        {% if last_health_check_at %}
+                        {{ last_health_check_at|date:"H:i:s" }} (Auto-checks every {{ system_settings.health_check_interval|default:30 }}s)
+                        {% elif maintenance_activated_at %}
+                        {{ maintenance_activated_at|date:"Y-m-d H:i" }}
+                        {% else %}
+                        Live Health Diagnostics
+                        {% endif %}
+                    </span>
+                </div>
             </div>
         </div>
 
-        <!-- Action Links -->
-        <div class="d-flex justify-content-center align-items-center gap-3 flex-wrap">
-            <a href="javascript:location.reload();" class="btn btn-outline-light px-3 py-2 rounded-3 text-decoration-none" style="font-size: 0.85rem;">
-                <i class="bi bi-arrow-clockwise me-1"></i>Check Again Now
-            </a>
-            <a href="{% url 'login' %}" class="btn-theme" style="font-size: 0.85rem;">
-                <i class="bi bi-shield-lock me-1"></i>Super Admin Access
+        <!-- Maintenance Progress Indicator -->
+        <div class="progress-box">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="fw-bold text-uppercase" style="color: #e2e8f0; font-size: 0.75rem; letter-spacing: 0.04em;">
+                    <i class="bi bi-activity me-1.5 text-primary"></i>Current Stage: {{ maintenance_stage|default:"Diagnostics & Integrity Checks" }}
+                </small>
+                <span class="fw-bold text-white font-monospace" style="font-size: 0.85rem;">{{ maintenance_progress|default:50 }}%</span>
+            </div>
+            
+            <div class="custom-progress">
+                <div class="custom-progress-bar" style="width: {{ maintenance_progress|default:50 }}%;"></div>
+            </div>
+
+            <div class="stage-steps">
+                <div class="stage-step {% if maintenance_progress >= 25 %}completed{% else %}active{% endif %}">
+                    <i class="bi {% if maintenance_progress >= 25 %}bi-check2{% else %}bi-circle{% endif %} me-1"></i>1. Isolation
+                </div>
+                <div class="stage-step {% if maintenance_progress >= 50 %}completed{% elif maintenance_progress >= 25 %}active{% endif %}">
+                    <i class="bi {% if maintenance_progress >= 50 %}bi-check2{% elif maintenance_progress >= 25 %}bi-arrow-repeat{% else %}bi-circle{% endif %} me-1"></i>2. Upgrades
+                </div>
+                <div class="stage-step {% if maintenance_progress >= 75 %}completed{% elif maintenance_progress >= 50 %}active{% endif %}">
+                    <i class="bi {% if maintenance_progress >= 75 %}bi-check2{% elif maintenance_progress >= 50 %}bi-arrow-repeat{% else %}bi-circle{% endif %} me-1"></i>3. Verification
+                </div>
+                <div class="stage-step {% if maintenance_progress >= 100 or maintenance_status == 'restored' %}completed{% elif maintenance_progress >= 75 %}active{% endif %}">
+                    <i class="bi {% if maintenance_progress >= 100 or maintenance_status == 'restored' %}bi-check2{% elif maintenance_progress >= 75 %}bi-arrow-repeat{% else %}bi-circle{% endif %} me-1"></i>4. Restoration
+                </div>
+            </div>
+        </div>
+
+        <!-- Support & Contact Details -->
+        {% if support_email or support_phone or helpdesk_url %}
+        <div class="support-box">
+            <div class="d-flex align-items-center justify-content-center gap-3 flex-wrap">
+                <span><i class="bi bi-headset me-1.5 text-warning"></i>Urgent Support:</span>
+                {% if support_email %}
+                <span><i class="bi bi-envelope me-1"></i><a href="mailto:{{ support_email }}">{{ support_email }}</a></span>
+                {% endif %}
+                {% if support_phone %}
+                <span><i class="bi bi-telephone me-1"></i><a href="tel:{{ support_phone }}">{{ support_phone }}</a></span>
+                {% endif %}
+                {% if helpdesk_url %}
+                <span><i class="bi bi-box-arrow-up-right me-1"></i><a href="{{ helpdesk_url }}" target="_blank">Helpdesk Portal</a></span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Single Safe Action: Check Status Now (No Admin Login Button) -->
+        <div class="d-flex justify-content-center align-items-center">
+            <a href="javascript:location.reload();" class="refresh-btn">
+                <i class="bi bi-arrow-clockwise fs-6"></i>Check Status Again
             </a>
         </div>
 
-        <div class="mt-4 pt-3 border-top border-secondary border-opacity-10">
-            <small class="text-muted" style="font-size: 0.75rem;">
-                {{ system_settings.organization_name|default:"Hostel Administration" }} &bull; Protected by HMS Core
-            </small>
+        <!-- Footer -->
+        <div class="footer-note">
+            {{ system_settings.organization_name|default:"Hostel Administration" }} &bull; Protected by HMS Core Platform
         </div>
     </div>
 </body>

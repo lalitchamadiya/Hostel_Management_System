@@ -1685,7 +1685,11 @@ class SystemSettingsForm(forms.ModelForm):
             'system_name', 'organization_name', 'logo', 'favicon', 
             'theme_color', 'dark_mode_default', 'show_theme_toggle', 'timezone', 
             'date_format', 'time_format', 'currency', 'language', 
-            'maintenance_mode', 'maintenance_message', 'estimated_restoration_time',
+            'maintenance_mode', 'auto_recovery_enabled', 'maintenance_type', 'maintenance_status',
+            'maintenance_title', 'maintenance_reason', 'maintenance_message',
+            'maintenance_stage', 'maintenance_progress', 'estimated_restoration_time',
+            'health_check_interval', 'consecutive_success_required',
+            'support_email', 'support_phone', 'helpdesk_url',
             'system_version', 'license_key', 'license_expiry',
             'session_timeout', 'login_attempt_limit', 'allowed_ips',
             'enable_audit_logs', 'password_expiry_days', 'backup_frequency'
@@ -1704,8 +1708,20 @@ class SystemSettingsForm(forms.ModelForm):
             'currency': forms.TextInput(attrs={'class': 'form-control'}),
             'language': forms.TextInput(attrs={'class': 'form-control'}),
             'maintenance_mode': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_maintenance_mode'}),
+            'auto_recovery_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_auto_recovery_enabled'}),
+            'maintenance_type': forms.Select(attrs={'class': 'form-select'}),
+            'maintenance_status': forms.Select(attrs={'class': 'form-select'}),
+            'maintenance_title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., System Under Maintenance'}),
+            'maintenance_reason': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Scheduled Database Migration'}),
             'maintenance_message': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Enter public maintenance announcement message...'}),
-            'estimated_restoration_time': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 2 hours, 04:00 PM UTC'}),
+            'maintenance_stage': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Diagnostics & Integrity Checks'}),
+            'maintenance_progress': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'max': '100'}),
+            'estimated_restoration_time': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 2026-11-03 14:00 UTC'}),
+            'health_check_interval': forms.NumberInput(attrs={'class': 'form-control', 'min': '5'}),
+            'consecutive_success_required': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'support_email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'support@hostel.com'}),
+            'support_phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+1 (800) 555-0199'}),
+            'helpdesk_url': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'https://support.hostel.com'}),
             'system_version': forms.TextInput(attrs={'class': 'form-control'}),
             'license_key': forms.TextInput(attrs={'class': 'form-control'}),
             'license_expiry': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
@@ -1716,6 +1732,19 @@ class SystemSettingsForm(forms.ModelForm):
             'password_expiry_days': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'backup_frequency': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if self.instance and self.instance.pk:
+            for field_name in self.fields:
+                if field_name not in self.data:
+                    cleaned_data[field_name] = getattr(self.instance, field_name)
+        return cleaned_data
 
 
 
@@ -1874,12 +1903,17 @@ def system_settings_view(request):
 
 
 
+    from authentication.health import SystemHealthService
+    health_summary = SystemHealthService.perform_full_health_check()
+    maintenance_history = AuditLog.objects.filter(
+        action__in=['maintenance_enabled', 'maintenance_disabled', 'maintenance_auto_recovered', 'health_check_failed']
+    ).order_by('-timestamp')[:8]
+
     return render(request, 'authentication/system_settings.html', {
-
         'form': form,
-
         'settings': settings,
-
+        'health_summary': health_summary,
+        'maintenance_history': maintenance_history,
     })
 
 
@@ -1987,3 +2021,232 @@ def password_expired_view(request):
         'expiry_days': expiry_days,
         'system_settings': settings_obj,
     })
+
+
+def secure_admin_access_view(request):
+    """
+    Unlinked, hidden Super Admin access route (/system-control/secure-access/).
+    - Accessible while maintenance mode is active.
+    - Requires secure authentication and server-side Super Admin role verification.
+    - Rate-limited, CSRF-protected, audit-logged.
+    - Rejects unauthorized users (ordinary staff, students, wardens) with 403 or redirect.
+    - Provides a dedicated Super Admin Maintenance Command Center to monitor live health,
+      toggle maintenance mode, toggle auto-recovery, and review maintenance history.
+    """
+    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    client_ip = x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR', '127.0.0.1')
+    settings_obj = SystemSettings.get_settings()
+
+    if request.user.is_authenticated:
+        # Verify Super Admin role
+        is_super = request.user.is_superuser
+        if not is_super:
+            profile = getattr(request.user, 'profile', None)
+            if profile and profile.role and profile.role.name == 'Super Admin':
+                is_super = True
+
+        if not is_super:
+            # Unauthorized user attempting to access hidden superadmin route
+            AuditLog.objects.create(
+                actor=request.user,
+                action='security_violation',
+                details=f"Unauthorized non-superadmin user '{request.user.username}' attempted to access hidden Super Admin route /system-control/secure-access/.",
+                ip_address=client_ip
+            )
+            return render(request, 'maintenance.html', {
+                'system_settings': settings_obj,
+                'maintenance_title': 'Access Denied (403)',
+                'maintenance_message': 'You do not have permission to access the Super Admin control route.',
+                'maintenance_status': 'active',
+            }, status=403)
+
+        # Authenticated Super Admin
+        if request.method == 'POST':
+            action = request.POST.get('action')
+
+            if action == 'toggle_maintenance':
+                settings_obj.maintenance_mode = not settings_obj.maintenance_mode
+                if settings_obj.maintenance_mode:
+                    settings_obj.maintenance_activated_at = timezone.now()
+                    settings_obj.maintenance_status = 'active'
+                    AuditLog.objects.create(
+                        actor=request.user,
+                        action='maintenance_enabled',
+                        details=f"Maintenance mode manually enabled by {request.user.username} via Secure Access Control.",
+                        ip_address=client_ip
+                    )
+                    messages.success(request, "Global System Maintenance Mode has been ENABLED (HTTP 503 active).")
+                else:
+                    settings_obj.maintenance_restored_at = timezone.now()
+                    settings_obj.maintenance_status = 'restored'
+                    AuditLog.objects.create(
+                        actor=request.user,
+                        action='maintenance_disabled',
+                        details=f"Maintenance mode manually disabled by {request.user.username} via Secure Access Control.",
+                        ip_address=client_ip
+                    )
+                    messages.success(request, "Global System Maintenance Mode has been DISABLED (Normal operations restored).")
+                settings_obj.save()
+
+            elif action == 'toggle_auto_recovery':
+                settings_obj.auto_recovery_enabled = not settings_obj.auto_recovery_enabled
+                settings_obj.save()
+                AuditLog.objects.create(
+                    actor=request.user,
+                    action='edit',
+                    details=f"Automatic Maintenance Recovery policy set to {settings_obj.auto_recovery_enabled} by {request.user.username}.",
+                    ip_address=client_ip
+                )
+                messages.success(request, f"Automatic Maintenance Recovery is now {'ENABLED' if settings_obj.auto_recovery_enabled else 'DISABLED'}.")
+
+            elif action == 'run_health_check':
+                from authentication.health import SystemHealthService
+                result = SystemHealthService.evaluate_and_recover(
+                    trigger='manual',
+                    actor=request.user,
+                    ip_address=client_ip
+                )
+                if result.get('recovered'):
+                    messages.success(request, "System health verification passed! Maintenance mode automatically lifted and service restored.")
+                elif result['health']['healthy']:
+                    messages.info(request, f"Health check passed ({result.get('consecutive_count')}/{settings_obj.consecutive_success_required} consecutive passes). All critical subsystems are operational.")
+                else:
+                    failed = [c['name'] for c in result['health']['checks'] if not c['passed']]
+                    messages.error(request, f"Health check failed: {', '.join(failed)}. Maintenance mode retained.")
+
+            elif action == 'update_details':
+                settings_obj.maintenance_status = request.POST.get('maintenance_status', settings_obj.maintenance_status)
+                settings_obj.maintenance_type = request.POST.get('maintenance_type', settings_obj.maintenance_type)
+                settings_obj.maintenance_title = request.POST.get('maintenance_title', settings_obj.maintenance_title)
+                settings_obj.maintenance_reason = request.POST.get('maintenance_reason', settings_obj.maintenance_reason)
+                settings_obj.maintenance_message = request.POST.get('maintenance_message', settings_obj.maintenance_message)
+                settings_obj.maintenance_stage = request.POST.get('maintenance_stage', settings_obj.maintenance_stage)
+                try:
+                    settings_obj.maintenance_progress = int(request.POST.get('maintenance_progress', 50))
+                except Exception:
+                    pass
+                settings_obj.estimated_restoration_time = request.POST.get('estimated_restoration_time', settings_obj.estimated_restoration_time)
+                settings_obj.save()
+                messages.success(request, "Maintenance parameters updated successfully.")
+
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'status': 'success', 'maintenance_mode': settings_obj.maintenance_mode})
+            return redirect('/system-control/secure-access/')
+
+        # GET request: Render Super Admin Command Center
+        from authentication.health import SystemHealthService
+        health_summary = SystemHealthService.perform_full_health_check()
+        recent_logs = AuditLog.objects.filter(
+            action__in=[
+                'maintenance_enabled', 'maintenance_disabled', 'maintenance_auto_recovered',
+                'health_check_failed', 'secure_access_login', 'security_violation', 'login'
+            ]
+        ).order_by('-timestamp')[:10]
+
+        return render(request, 'authentication/secure_admin_command.html', {
+            'system_settings': settings_obj,
+            'health_summary': health_summary,
+            'recent_logs': recent_logs,
+        })
+
+    # Unauthenticated visitor attempting to access hidden route
+    if request.method == 'POST':
+        # 1-minute rate limiting
+        rate_key = f"secure_admin_login_rate_{client_ip}"
+        attempt_data = cache.get(rate_key)
+        now_ts = int(time.time())
+        limit = getattr(settings_obj, 'login_attempt_limit', 5) or 5
+
+        if attempt_data and isinstance(attempt_data, dict):
+            elapsed = now_ts - attempt_data.get('start_ts', now_ts)
+            if elapsed < 60:
+                if attempt_data.get('count', 0) >= limit:
+                    remaining = max(1, 60 - elapsed)
+                    messages.error(request, f"Rate limit reached. Please wait {remaining} seconds before re-attempting secure access.")
+                    return render(request, 'authentication/secure_admin_login.html', {'system_settings': settings_obj})
+            else:
+                attempt_data = {'count': 0, 'start_ts': now_ts}
+        else:
+            attempt_data = {'count': 0, 'start_ts': now_ts}
+
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+
+        user = auth.authenticate(username=username, password=password)
+        if user:
+            is_super = user.is_superuser
+            if not is_super:
+                profile = getattr(user, 'profile', None)
+                if profile and profile.role and profile.role.name == 'Super Admin':
+                    is_super = True
+
+            if is_super and user.is_active:
+                cache.delete(rate_key)
+                auth.login(request, user)
+                AuditLog.objects.create(
+                    actor=user,
+                    action='secure_access_login',
+                    details=f"Super Admin '{user.username}' successfully authenticated via Secure Access Route.",
+                    ip_address=client_ip
+                )
+                return redirect('/system-control/secure-access/')
+            else:
+                attempt_data['count'] = attempt_data.get('count', 0) + 1
+                cache.set(rate_key, attempt_data, timeout=60)
+                AuditLog.objects.create(
+                    actor=user,
+                    action='security_violation',
+                    details=f"Non-superadmin '{user.username}' attempted authentication at Secure Access route.",
+                    ip_address=client_ip
+                )
+                messages.error(request, "Access restricted. Only verified Super Administrators are authorized.")
+        else:
+            attempt_data['count'] = attempt_data.get('count', 0) + 1
+            cache.set(rate_key, attempt_data, timeout=60)
+            messages.error(request, "Invalid username or password.")
+
+    return render(request, 'authentication/secure_admin_login.html', {
+        'system_settings': settings_obj
+    })
+
+
+def system_health_endpoint(request):
+    """
+    Restricted internal health-check endpoint (/system-control/health/).
+    Accessible to authenticated Super Admins or via internal health key.
+    Never exposes database credentials, passwords, or raw stack traces.
+    """
+    is_super = False
+    if request.user.is_authenticated:
+        is_super = request.user.is_superuser
+        if not is_super:
+            profile = getattr(request.user, 'profile', None)
+            if profile and profile.role and profile.role.name == 'Super Admin':
+                is_super = True
+
+    expected_key = getattr(settings, 'SECRET_KEY', '')[:16]
+    has_key = request.headers.get('X-Health-Check-Key') == expected_key or request.GET.get('key') == expected_key
+
+    if not is_super and not has_key:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Access denied. Internal health verification requires Super Admin authentication or valid authorization key.'
+        }, status=403)
+
+    from authentication.health import SystemHealthService
+    health_result = SystemHealthService.perform_full_health_check()
+    settings_obj = SystemSettings.get_settings()
+
+    status_code = 200 if health_result['healthy'] else 503
+    return JsonResponse({
+        'status': health_result['status'],
+        'healthy': health_result['healthy'],
+        'timestamp': health_result['timestamp'],
+        'summary': health_result['summary'],
+        'maintenance_mode': settings_obj.maintenance_mode,
+        'maintenance_status': settings_obj.maintenance_status,
+        'auto_recovery_enabled': settings_obj.auto_recovery_enabled,
+        'consecutive_success_count': settings_obj.consecutive_success_count,
+        'consecutive_success_required': settings_obj.consecutive_success_required,
+        'checks': health_result['checks']
+    }, status=status_code)

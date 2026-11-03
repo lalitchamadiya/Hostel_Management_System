@@ -117,10 +117,7 @@ def superadmin_dashboard(request):
     active_users = User.objects.filter(is_active=True).count()
 
     # ── System Health ──
-    disk = shutil.disk_usage('/')
-    disk_total_gb = round(disk.total / (1024 ** 3), 1)
-    disk_used_gb = round(disk.used / (1024 ** 3), 1)
-    disk_pct = round(disk.used / disk.total * 100, 1)
+    disk_total_gb, disk_used_gb, disk_pct = _get_safe_disk_usage()
 
     # ── Chart Data ──
     # Monthly revenue last 6 months
@@ -289,10 +286,7 @@ def live_dashboard_stats(request):
     pending_leaves = HostelLeave.objects.filter(status='pending').count()
 
     # System Health
-    disk = shutil.disk_usage('/')
-    disk_total_gb = round(disk.total / (1024 ** 3), 1)
-    disk_used_gb = round(disk.used / (1024 ** 3), 1)
-    disk_pct = round(disk.used / disk.total * 100, 1)
+    disk_total_gb, disk_used_gb, disk_pct = _get_safe_disk_usage()
 
     return JsonResponse({
         'total_students': total_students,
@@ -856,8 +850,6 @@ from authentication.decorators import permission_required, api_permission_requir
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'view')
-@login_required(login_url='/authentication/login')
-@permission_required('duty_management', 'view')
 def duty_list(request):
     assignments = DutyAssignment.objects.select_related('staff', 'duty').filter(is_active=True).order_by('-assigned_date')
     staff_members = StaffProfile.objects.filter(status='active').order_by('name')
@@ -1064,4 +1056,4 @@ def get_floors_for_building(request):
 
 
 
-
+

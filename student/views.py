@@ -105,11 +105,12 @@ def create_student(request):
 
             roll = form.cleaned_data['roll']
             email = form.cleaned_data['email']
+            initial_password = secrets.token_urlsafe(8)
             try:
                 user = User.objects.create_user(
                     username=roll,
                     email=email,
-                    password='User1234',
+                    password=initial_password,
                 )
             except IntegrityError:
                 if User.objects.filter(username=roll).exists():
@@ -121,7 +122,7 @@ def create_student(request):
                 user.groups.add(group)
                 student.user = user
                 student.save()
-                messages.success(request, 'Student created successfully.')
+                messages.success(request, f'Student created successfully. Initial temporary password: {initial_password}')
                 return redirect('student_list')
     else:
         form = StudentForm()
@@ -233,6 +234,8 @@ def delete_student(request, pk):
         # deleting the user cascades to the Student record
         if student.user:
             student.user.delete()
+        else:
+            student.delete()
         messages.success(request, 'Student deleted successfully.')
         return redirect('student_list')
     return render(request, 'student/confirm_delete.html', {'student': student})
@@ -243,6 +246,7 @@ from room.models import HostelBuilding, Bed
 from .models import StudentFeePayment
 
 @login_required
+@permission_required('fee_manager', 'view')
 def fee_manager(request):
     """
     Fee Manager View: Shows calculated fees (Total Fee, Paid Fee, Remaining Fee) for all allocated students.
@@ -314,6 +318,7 @@ def fee_manager(request):
 
 
 @login_required
+@permission_required('fee_manager', 'add')
 def record_fee_payment(request, student_id):
     student = get_object_or_404(Student, pk=student_id)
     if request.method == 'POST':
@@ -350,6 +355,7 @@ def record_fee_payment(request, student_id):
 from .models import FeeInstallment, FeePenalty
 
 @login_required
+@permission_required('fee_manager', 'add')
 def fee_installments(request):
     """
     Manage Fee Installment Due Dates
@@ -399,6 +405,7 @@ def fee_installments(request):
 
 
 @login_required
+@permission_required('fee_manager', 'add')
 def fee_penalties(request):
     """
     Manage Late Fee Penalty Rules & Grace Periods
@@ -446,6 +453,7 @@ def fee_penalties(request):
 
 
 @login_required
+@permission_required('fee_manager', 'view')
 def fee_transactions(request):
     """
     View complete record of all student fee payments & transaction receipts

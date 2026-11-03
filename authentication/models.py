@@ -569,15 +569,26 @@ class SystemSettings(models.Model):
         self.pk = 1
 
         super().save(*args, **kwargs)
+        try:
+            from django.core.cache import cache
+            cache.set('global_system_settings_cache', self, 60)
+        except Exception:
+            pass
 
 
 
     @classmethod
 
     def get_settings(cls):
-
+        from django.core.cache import cache
+        cached = cache.get('global_system_settings_cache')
+        if cached is not None:
+            return cached
         settings, created = cls.objects.get_or_create(pk=1)
-
+        try:
+            cache.set('global_system_settings_cache', settings, 60)
+        except Exception:
+            pass
         return settings
 
 

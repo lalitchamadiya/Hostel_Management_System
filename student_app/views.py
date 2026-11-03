@@ -1,5 +1,9 @@
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, render , redirect
+from django.urls import reverse
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 from leave.models import HostelLeave, GatePass
 from student.forms import StudentForm, StudentSelfUpdateForm
 from student.models import Student 
@@ -193,7 +197,7 @@ def food_schedule(request):
 
 @login_required(login_url='/authentication/login/')
 def student_leave_request(request):
-    student_details = get_object_or_404(Student, email=request.user.email)
+    student_details = get_object_or_404(Student, user=request.user)
     latest_leave = HostelLeave.objects.filter(student=student_details).order_by('-created_at').first()
 
     if request.method == 'POST':
@@ -243,7 +247,7 @@ def student_leave_request(request):
 def student_leave_details(request):
     if request.user.is_authenticated:
         try:
-            student = get_object_or_404(Student, email=request.user.email)
+            student = get_object_or_404(Student, user=request.user)
             leave_requests = HostelLeave.objects.filter(student=student).order_by('-created_at')
         except Student.DoesNotExist:
             leave_requests = []
@@ -267,13 +271,21 @@ def change_password(request):
             messages.error(request, 'The new passwords do not match.')
             return redirect('student_app:change_password')
 
-        if len(new_password1) < 8:
-            messages.error(request, 'The new password must be at least 8 characters long.')
+        try:
+            validate_password(new_password1, user=request.user)
+        except ValidationError as e:
+            for error in e.messages:
+                messages.error(request, error)
             return redirect('student_app:change_password')
 
         # Change the password
         request.user.set_password(new_password1)
         request.user.save()
+
+        # Update password_changed_at if profile exists
+        if hasattr(request.user, 'profile') and request.user.profile:
+            request.user.profile.password_changed_at = timezone.now()
+            request.user.profile.save(update_fields=['password_changed_at'])
 
         # Keep the user logged in after changing the password
         update_session_auth_hash(request, request.user)
@@ -312,7 +324,6 @@ def view_active_pass(request, leave_id):
     }
     return render(request, 'student_app/student_pass_view.html', context)
 
-from django.urls import reverse
 
 @login_required(login_url='/authentication/login/')
 def active_pass_status_json(request, leave_id):

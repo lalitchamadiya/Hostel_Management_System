@@ -5,6 +5,7 @@ from authentication.decorators import role_required, permission_required
 from django.core.exceptions import PermissionDenied
 from datetime import datetime, date, timedelta, time
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.db import transaction, models
 from .models import HostelLeave, GatePass, QRPass
 from student.models import Student, Attendance
@@ -30,8 +31,14 @@ def edit_leave(request, leave_id):
     student = leave.student
     if request.method == 'POST':
         leave.reason = request.POST.get('reason')
-        leave.leave_from = request.POST.get('leave_date')
-        leave.leave_to = request.POST.get('return_date')
+        from_str = request.POST.get('leave_date')
+        to_str = request.POST.get('return_date')
+        parsed_from = parse_date(from_str) if from_str else None
+        parsed_to = parse_date(to_str) if to_str else None
+        if parsed_from:
+            leave.leave_from = parsed_from
+        if parsed_to:
+            leave.leave_to = parsed_to
         leave.start_time = request.POST.get('start_time')
         leave.end_time = request.POST.get('end_time')
         leave.destination = request.POST.get('destination')
@@ -54,9 +61,19 @@ def process_leave_action(request, leave, action):
             leave.approved_by = request.user
             leave.approval_date = timezone.now()
             
+            # Ensure date objects
+            l_from = leave.leave_from
+            if isinstance(l_from, str):
+                l_from = parse_date(l_from)
+                leave.leave_from = l_from
+            l_to = leave.leave_to
+            if isinstance(l_to, str):
+                l_to = parse_date(l_to)
+                leave.leave_to = l_to
+
             # Calculate total days
-            if leave.leave_to and leave.leave_from:
-                leave.total_days = (leave.leave_to - leave.leave_from).days or 1
+            if l_to and l_from:
+                leave.total_days = max((l_to - l_from).days, 1)
             leave.save()
 
             # Generate Gate Pass
@@ -64,7 +81,8 @@ def process_leave_action(request, leave, action):
             GatePass.objects.create(gate_pass_no=gp_no, leave_request=leave)
 
             # Generate EXIT QRPass (Expires at the end of leave_from date)
-            expires_at = timezone.make_aware(datetime.combine(leave.leave_from, time(23, 59, 59)))
+            valid_from_date = l_from or timezone.now().date()
+            expires_at = timezone.make_aware(datetime.combine(valid_from_date, time(23, 59, 59)))
             QRPass.objects.create(
                 leave=leave,
                 pass_type='EXIT',
@@ -74,8 +92,8 @@ def process_leave_action(request, leave, action):
             student = leave.student
 
             # Mark Attendance as 'On Leave' for the dates
-            current_date = leave.leave_from
-            end_date = leave.leave_to or leave.leave_from
+            current_date = l_from or timezone.now().date()
+            end_date = l_to or current_date
             while current_date <= end_date:
                 Attendance.objects.update_or_create(
                     student=student,

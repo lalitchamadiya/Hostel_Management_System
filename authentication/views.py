@@ -216,41 +216,21 @@ class RegistrationView(View):
 
             return render(request, 'authentication/register.html', context)
 
-        if len(password) < 6:
-
-            messages.error(request, 'Password too short')
-
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            for err in e.messages:
+                messages.error(request, err)
             return render(request, 'authentication/register.html', context)
 
-
-
         user = User.objects.create_user(username=username, email=email)
-
         user.set_password(password)
-
         user.save()
 
-
-
-        # Check role or fallback to Student role automatically
-
-        role_obj = None
-
-        if role_id:
-
-            try:
-
-                role_obj = Role.objects.get(id=role_id)
-
-            except (Role.DoesNotExist, ValueError):
-
-                pass
-
-
-
-        if not role_obj:
-
-            role_obj = get_or_create_student_role()
+        # Public self-registration strictly assigns Student role to prevent privilege escalation
+        role_obj = get_or_create_student_role()
 
 
 
@@ -962,7 +942,7 @@ def user_list(request):
 
             elif action == 'delete':
 
-                deletable = selected_users.exclude(id=request.user.id)
+                deletable = selected_users.exclude(id=request.user.id).exclude(is_superuser=True).exclude(profile__role__is_superadmin=True)
 
                 u_count = deletable.count()
 
@@ -1097,12 +1077,14 @@ def user_create(request):
             errors.append('Email already in use.')
 
         if password != confirm_password:
-
             errors.append('Passwords do not match.')
-
-        if len(password) < 6:
-
-            errors.append('Password must be at least 6 characters.')
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            for err in e.messages:
+                errors.append(err)
 
 
 
@@ -2244,8 +2226,13 @@ def system_health_endpoint(request):
             if profile and profile.role and profile.role.name == 'Super Admin':
                 is_super = True
 
-    expected_key = getattr(settings, 'SECRET_KEY', '')[:16]
-    has_key = request.headers.get('X-Health-Check-Key') == expected_key or request.GET.get('key') == expected_key
+    import hashlib
+    import secrets
+    # Use dedicated health check key or SHA256 digest so raw SECRET_KEY is never exposed
+    raw_secret = getattr(settings, 'SECRET_KEY', 'default-key')
+    expected_key = os.getenv('HEALTH_CHECK_KEY') or hashlib.sha256(f"health:{raw_secret}".encode('utf-8')).hexdigest()[:32]
+    provided_key = request.headers.get('X-Health-Check-Key') or request.GET.get('key') or ''
+    has_key = secrets.compare_digest(provided_key, expected_key) if expected_key and provided_key else False
 
     if not is_super and not has_key:
         return JsonResponse({

@@ -41,7 +41,10 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-1%8h(#9yx%1ywjw^!=8!a!#q)@
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 # ALLOWED_HOSTS configuration for local, Railway, and Vercel environments
-ALLOWED_HOSTS = ['*']
+raw_allowed = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost,testserver,.vercel.app,.railway.app,.up.railway.app')
+ALLOWED_HOSTS = [h.strip() for h in raw_allowed.split(',') if h.strip()]
+if DEBUG and '*' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('*')
 
 # CSRF & HTTPS trust for reverse proxies (Railway & Vercel)
 CSRF_TRUSTED_ORIGINS = [

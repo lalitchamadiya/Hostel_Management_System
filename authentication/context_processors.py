@@ -147,15 +147,20 @@ def rbac_context(request):
 def hostel_context(request):
     """
     Injects the active hostel and a list of all available hostels into the template context.
+    Cached on the request to avoid repetitive queries.
     """
-    from .models import Hostel
-    
+    if hasattr(request, '_hostel_context_cache'):
+        return request._hostel_context_cache
+
     if not request.user.is_authenticated:
-        return {
+        res = {
             'active_hostel': None,
             'available_hostels': [],
         }
+        request._hostel_context_cache = res
+        return res
 
+    from .models import Hostel
     hostels = list(Hostel.objects.all())
     active_hostel_id = request.session.get('active_hostel_id')
     active_hostel = None
@@ -167,36 +172,51 @@ def hostel_context(request):
         active_hostel = hostels[0]
         request.session['active_hostel_id'] = active_hostel.id
 
-    return {
+    res = {
         'active_hostel': active_hostel,
         'available_hostels': hostels,
     }
+    request._hostel_context_cache = res
+    return res
 
 
 def system_settings_context(request):
     """
     Injects global SystemSettings into the template context.
+    Cached on the request to avoid repetitive lookups.
     """
+    if hasattr(request, '_sys_settings_context_cache'):
+        return request._sys_settings_context_cache
     from .models import SystemSettings
-    return {
+    res = {
         'system_settings': SystemSettings.get_settings(),
     }
+    request._sys_settings_context_cache = res
+    return res
 
 
 def leave_context(request):
     """
     Injects pending_leave_count into the template context for side navigation badges.
+    Cached on the request to avoid multiple count queries during template rendering.
     """
+    if hasattr(request, '_leave_context_cache'):
+        return request._leave_context_cache
+
     if not request.user.is_authenticated:
-        return {'pending_leave_count': 0}
+        res = {'pending_leave_count': 0}
+        request._leave_context_cache = res
+        return res
     try:
         from leave.models import HostelLeave
         if hasattr(request.user, 'profile') and request.user.profile.role and request.user.profile.role.name == 'Student':
             count = HostelLeave.objects.filter(student__user=request.user, status='pending').count()
         else:
             count = HostelLeave.objects.filter(status='pending').count()
-        return {'pending_leave_count': count}
+        res = {'pending_leave_count': count}
     except Exception:
-        return {'pending_leave_count': 0}
+        res = {'pending_leave_count': 0}
+    request._leave_context_cache = res
+    return res
 
 

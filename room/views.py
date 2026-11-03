@@ -3,6 +3,7 @@ from django import forms
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from authentication.decorators import permission_required
 from django.http import JsonResponse
 from django.db.models import Q
 from student.models import Student
@@ -125,6 +126,7 @@ class BuildingForm(forms.Form):
 
 # ── Main Room Dashboard ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def room_base(request):
     active_buildings = HostelBuilding.objects.filter(is_active=True)
     active_b_ids = set(active_buildings.values_list('id', flat=True))
@@ -159,6 +161,7 @@ def room_base(request):
 
 # ── Room Management (Overview) ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def room_manage(request):
     search_query = request.GET.get('q', '').strip()
     selected_building_id = request.GET.get('building', '')
@@ -217,6 +220,7 @@ def room_manage(request):
 
 # ── Room Allocation ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'add')
 def room_allocate(request):
     if request.method == 'POST':
         room_id = request.POST.get('room-select')
@@ -258,6 +262,7 @@ def room_allocate(request):
 
 # ── Auto Allocate ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'add')
 def room_auto_allocate(request):
     assigned_student_ids = Bed.objects.filter(student__isnull=False).values_list('student_id', flat=True)
     unallocated_students = Student.objects.filter(status='Active').exclude(student_id__in=assigned_student_ids)
@@ -270,6 +275,7 @@ def room_auto_allocate(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'add')
 def room_auto_allocate_execute(request):
     if request.method == 'POST':
         active_b_ids = set(HostelBuilding.objects.filter(is_active=True).values_list('id', flat=True))
@@ -300,6 +306,7 @@ def room_auto_allocate_execute(request):
 
 # ── Create Room ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'add')
 def create_room(request):
     if request.method == 'POST':
         form = RoomForm(request.POST)
@@ -357,6 +364,7 @@ def create_room(request):
 
 # ── Edit / Delete / Change Room ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'edit')
 def edit_room(request, pk):
     room_obj = get_object_or_404(Room, pk=pk)
 
@@ -432,6 +440,7 @@ def edit_room(request, pk):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'delete')
 def delete_room(request, pk):
     room_obj = Room.objects.filter(pk=pk).first()
     if room_obj:
@@ -447,6 +456,7 @@ def delete_room(request, pk):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'delete')
 def delete_allocation(request, bed_id):
     bed_obj = Bed.objects.filter(pk=bed_id).first()
     found_room_id = None
@@ -468,6 +478,7 @@ def delete_allocation(request, bed_id):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'edit')
 def change_room(request, current_bed_id):
     curr_bed_obj = Bed.objects.filter(pk=current_bed_id).first()
     if not curr_bed_obj:
@@ -541,6 +552,7 @@ def change_room(request, current_bed_id):
 
 # ── Building Management ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def building_list(request):
     qs = HostelBuilding.objects.all()
 
@@ -574,6 +586,7 @@ def building_list(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'add')
 def building_create(request):
     if request.method == 'POST':
         form = BuildingForm(request.POST)
@@ -613,6 +626,7 @@ def building_create(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'edit')
 def building_edit(request, pk):
     b_info = get_object_or_404(HostelBuilding, pk=pk)
     current_fee = b_info.get_current_fee()
@@ -679,6 +693,7 @@ def building_edit(request, pk):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'add')
 def add_building_fee_structure(request, building_id):
     building = get_object_or_404(HostelBuilding, pk=building_id)
     if request.method == 'POST':
@@ -709,6 +724,7 @@ def add_building_fee_structure(request, building_id):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'delete')
 def building_delete(request, pk):
     b_obj = HostelBuilding.objects.filter(pk=pk).first()
     if b_obj:
@@ -724,6 +740,7 @@ def building_delete(request, pk):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'edit')
 def building_toggle(request, pk):
     b_info = HostelBuilding.objects.filter(pk=pk).first()
     if b_info:
@@ -738,6 +755,7 @@ def building_toggle(request, pk):
 
 # ── Residents & Student Views ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def student_details_list(request):
     beds = Bed.objects.filter(student__isnull=False).select_related('student', 'room', 'room__building')
     students = Student.objects.filter(status='Active').order_by('-student_id')
@@ -751,6 +769,7 @@ def student_details_list(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def student_allocated_view(request, room_id):
     room_obj_db = Room.objects.filter(pk=room_id).first()
 
@@ -797,6 +816,7 @@ def student_allocated_view(request, room_id):
 
 # ── AJAX Endpoints ──
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def check_room_number(request):
     number = request.GET.get('number', '').strip()
     building_id = request.GET.get('building_id')
@@ -818,6 +838,7 @@ def check_room_number(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def get_floors(request):
     building_id = request.GET.get('building_id')
     if not building_id or not str(building_id).isdigit():
@@ -870,11 +891,13 @@ def get_floors(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def rooms_by_building(request):
     return JsonResponse({'rooms': []})
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def get_rooms_for_allocation(request):
     building_id = request.GET.get('building_id')
     active_b_ids = set(HostelBuilding.objects.filter(is_active=True).values_list('id', flat=True))
@@ -901,6 +924,7 @@ def get_rooms_for_allocation(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def get_beds_for_room(request):
     room_id = request.GET.get('room_id', '1')
     room_info = Room.objects.filter(pk=room_id).prefetch_related('beds', 'beds__student').first()
@@ -934,6 +958,7 @@ def get_beds_for_room(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def get_students_by_gender(request):
     room_gender = request.GET.get('room_gender', '')
     gender = 'Male' if 'boy' in room_gender.lower() else 'Female'
@@ -953,6 +978,7 @@ def get_students_by_gender(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'view')
 def search_unallocated_students(request):
     q = request.GET.get('q', '').strip()
     assigned_st_ids = Bed.objects.filter(student__isnull=False).values_list('student_id', flat=True)
@@ -974,6 +1000,7 @@ def search_unallocated_students(request):
 
 
 @login_required(login_url='/authentication/login')
+@permission_required('room', 'add')
 def allocate_bed_ajax(request):
     if request.method == 'POST':
         try:

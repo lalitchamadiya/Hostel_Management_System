@@ -60,9 +60,36 @@ def serve_media(request, path):
         except Exception:
             pass
 
-    # 3. Fallback for avatar / photos: redirect to default user avatar rather than showing a broken image
+        # Check SystemSettings model (system logo and favicon)
+        try:
+            from authentication.models import SystemSettings
+            sys_settings = SystemSettings.objects.first()
+            if sys_settings:
+                data_uri = None
+                if 'system_logos' in path or (sys_settings.logo and filename in str(sys_settings.logo)):
+                    data_uri = sys_settings.logo_data
+                elif 'system_favicons' in path or (sys_settings.favicon and filename in str(sys_settings.favicon)):
+                    data_uri = sys_settings.favicon_data
+
+                if data_uri:
+                    header, encoded = data_uri.split(',', 1) if ',' in data_uri else ('', data_uri)
+                    mime = 'image/png'
+                    if 'image/' in header:
+                        mime = header.split(';')[0].replace('data:', '')
+                    img_bytes = base64.b64decode(encoded)
+                    response = HttpResponse(img_bytes, content_type=mime)
+                    response['Cache-Control'] = 'public, max-age=86400'
+                    return response
+        except Exception:
+            pass
+
+    # 3. Fallback for avatar / photos / logos: redirect to default assets rather than showing a broken image
     if 'student_photos' in path or 'user_photos' in path or 'avatar' in path:
         return redirect('/static/image/User.jpg')
+    if 'system_logos' in path:
+        return redirect('/static/image/logo.png')
+    if 'system_favicons' in path:
+        return redirect('/static/favicon.ico')
 
     # If it's another media file that doesn't exist, raise standard 404
     raise Http404(f"Media file '{path}' does not exist")

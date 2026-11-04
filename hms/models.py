@@ -320,3 +320,29 @@ class DutyApprovalLog(models.Model):
 
     def __str__(self):
         return f"{self.assignment.duty_title} - {self.action} by {self.performed_by or 'System'}"
+
+class UserDashboardPreference(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='dashboard_preference')
+    enabled_widgets = models.JSONField(default=list, blank=True)
+    widget_order = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_dashboard_preference'
+
+    def __str__(self):
+        return f"Dashboard Preference for {self.user.username}"
+
+
+class RoleDashboardConfig(models.Model):
+    role = models.OneToOneField('authentication.Role', on_delete=models.CASCADE, related_name='dashboard_config')
+    default_widgets = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'role_dashboard_config'
+
+    def __str__(self):
+        return f"Dashboard Config for {self.role.name}"

@@ -6,7 +6,13 @@ urlpatterns = [
     path("superadmin/", views.superadmin_dashboard, name='superadmin_dashboard'),
     path("superadmin/ajax/live-stats/", views.live_dashboard_stats, name='live_dashboard_stats'),
 
-    
+    # Enterprise Dynamic Dashboard (Non-Super Admin Roles)
+    path("dynamic-dashboard/", views.dynamic_dashboard, name='dynamic_dashboard'),
+    path("dashboard/ajax/live-kpis/", views.dashboard_live_kpis, name='dashboard_live_kpis'),
+    path("dashboard/ajax/save-widgets/", views.dashboard_save_widgets, name='dashboard_save_widgets'),
+    path("dashboard/ajax/quick-approve-leave/<int:leave_id>/", views.dashboard_quick_approve_leave, name='dashboard_quick_approve_leave'),
+    path("dashboard/ajax/quick-verify-exit/<int:leave_id>/", views.dashboard_quick_verify_exit, name='dashboard_quick_verify_exit'),
+
     # Staff Management
     path("staff/", views.staff_list, name='staff_list'),
     path("staff/create/", views.staff_create, name='staff_create'),
@@ -33,11 +39,7 @@ urlpatterns = [
     path("complaints/<int:pk>/assign/", views.complaint_assign, name='complaint_assign'),
     path("complaints/<int:pk>/resolve/", views.complaint_resolve, name='complaint_resolve'),
 
-
-
     # Reports
     path("reports/", views.reports_dashboard, name='reports_dashboard'),
     path("reports/export/<str:module>/", views.export_report, name='export_report'),
-
-
 ]

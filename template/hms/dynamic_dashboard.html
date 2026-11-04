@@ -1,0 +1,812 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %} | {{ page_title }}{% endblock %}
+
+{% block content %}
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --dash-font: 'Outfit', sans-serif;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --card-bg: #161b22;
+  --header-grad: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --pill-bg: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme="light"] {
+  --glass-bg: rgba(0, 0, 0, 0.02);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --card-bg: #ffffff;
+  --header-grad: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --pill-bg: rgba(0, 0, 0, 0.04);
+}
+
+body { font-family: var(--dash-font); }
+
+/* Dashboard Header */
+.dynamic-header {
+  background: var(--header-grad);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.25rem;
+  padding: 1.75rem 2rem;
+  margin-bottom: 1.75rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Pulsing Badge for Active Shift */
+.pulse-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  position: relative;
+}
+.pulse-dot {
+  width: 9px;
+  height: 9px;
+  background-color: #22c55e;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: pulse-ring 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* Dynamic Cards */
+.dash-card {
+  background: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 1.25rem;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+.dash-card:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+.dash-card-header {
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* KPI Card */
+.kpi-card {
+  padding: 1.35rem 1.4rem;
+  border-radius: 1.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.25s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+}
+.kpi-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+/* Quick Action Button */
+.action-btn-item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: 1rem;
+  background: var(--pill-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+.action-btn-item:hover {
+  transform: translateX(4px);
+  background: rgba(99, 102, 241, 0.08);
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+/* Shift Schedule Day Pill */
+.day-pill {
+  border-radius: 1rem;
+  padding: 0.75rem 0.6rem;
+  text-align: center;
+  border: 1px solid var(--glass-border);
+  background: var(--pill-bg);
+  transition: all 0.2s ease;
+}
+.day-pill.active-today {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+.day-pill.has-shift {
+  border-top: 3px solid #22c55e;
+}
+</style>
+
+<div class="container-fluid px-3 px-lg-4 py-3">
+
+    {# ── Top Dynamic Hero Header ── #}
+    <div class="dynamic-header">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-7">
+                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                    {# System Role Badge #}
+                    {% if ctx.is_role_valid %}
+                    <span class="badge bg-primary text-white rounded-pill px-3 py-1 fw-semibold" style="font-size:0.8rem;">
+                        <i class="bi bi-person-badge me-1"></i>{{ ctx.role_name }}
+                    </span>
+                    {% else %}
+                    <span class="badge bg-danger text-white rounded-pill px-3 py-1 fw-semibold" style="font-size:0.8rem;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ ctx.role_name }}
+                    </span>
+                    {% endif %}
+
+                    {# Live Shift Status Pill #}
+                    {% if kpis.duty.is_on_shift %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 pulse-badge fw-semibold" style="font-size:0.8rem;">
+                        <span class="pulse-dot"></span> LIVE ON DUTY
+                    </span>
+                    {% elif kpis.duty.has_duties %}
+                    <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-3 py-1 fw-semibold" style="font-size:0.8rem;">
+                        <i class="bi bi-clock me-1"></i> Scheduled Shift
+                    </span>
+                    {% else %}
+                    <span class="badge bg-light text-muted border rounded-pill px-3 py-1 fw-semibold" style="font-size:0.8rem;">
+                        <i class="bi bi-shield me-1"></i> Standard Standby
+                    </span>
+                    {% endif %}
+
+                    {# Scoped Location Pill #}
+                    <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-3 py-1 fw-semibold text-truncate" style="max-width:280px; font-size:0.8rem;">
+                        <i class="bi bi-geo-alt-fill me-1"></i>
+                        {% if ctx.active_duties %}
+                            {{ ctx.active_duties.0.location_display }}
+                        {% elif ctx.scoped_hostel_id %}
+                            Assigned Hostel Area
+                        {% else %}
+                            Campus Scope
+                        {% endif %}
+                    </span>
+                </div>
+
+                <h3 class="fw-bold mb-1" style="color:var(--text-main);">
+                    Welcome back, {{ request.user.get_full_name|default:request.user.username }}
+                </h3>
+                <p class="mb-0 small" style="color:var(--text-muted);">
+                    Personalized operations workspace configured dynamically according to your System Role (<strong>{{ ctx.role_name }}</strong>) and authorized duty scopes.
+                </p>
+            </div>
+
+            <div class="col-lg-5 text-lg-end">
+                <div class="d-flex align-items-center justify-content-lg-end gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm fw-medium" data-bs-toggle="modal" data-bs-target="#modalCustomizeWidgets">
+                        <i class="bi bi-sliders me-1"></i> Customize Widgets
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm fw-medium" onclick="window.location.reload();">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refresh Live
+                    </button>
+                </div>
+                <div class="mt-2 text-muted x-small" style="font-size:0.78rem;">
+                    Last updated: <span id="dashLastUpdated">{{ now|date:"d M Y, h:i A" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Role Missing / Fail-Closed Warning ── #}
+    {% if not ctx.is_role_valid %}
+    <div class="alert alert-danger rounded-4 shadow-sm p-4 mb-4 border-0" role="alert">
+        <div class="d-flex align-items-center gap-3">
+            <div class="fs-1 text-danger"><i class="bi bi-shield-slash-fill"></i></div>
+            <div>
+                <h5 class="fw-bold mb-1">Role Missing – Reassignment Required</h5>
+                <p class="mb-1 small">Your account currently lacks an active system role or your role has been decommissioned. In accordance with <strong>Fail-Closed Security Policies</strong>, operational permissions are restricted until a Super Administrator assigns an active role.</p>
+                <div class="fw-semibold x-small text-danger">Status: Access Denied / Standby Mode. Please contact Super Admin.</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Operational Alerts Widget ── #}
+    {% if 'operational_alerts' in enabled_widgets and operational_alerts %}
+    <div class="mb-4">
+        {% for alert in operational_alerts %}
+        <div class="alert alert-{{ alert.type }} alert-dismissible fade show rounded-4 border-0 shadow-sm py-2 px-3 mb-2 d-flex align-items-center gap-2" role="alert">
+            <i class="bi {{ alert.icon }} fs-5"></i>
+            <div class="small">
+                <strong>{{ alert.title }}:</strong> {{ alert.message }}
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── Active Duty Assignments Cards (Multiple Duties Support) ── #}
+    {% if 'active_duties' in enabled_widgets %}
+    <div class="dash-card mb-4">
+        <div class="dash-card-header">
+            <div class="d-flex align-items-center gap-2">
+                <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-shield-check fs-5"></i></div>
+                <div>
+                    <h6 class="fw-bold mb-0" style="color:var(--text-main);">Active Duty Assignments & Shifts</h6>
+                    <small class="text-muted">Dynamic responsibilities, locations, and timings assigned to you</small>
+                </div>
+            </div>
+            {% if ctx.active_duties %}
+            <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-1 fw-semibold">
+                {{ ctx.active_duties|length }} Active {% if ctx.active_duties|length == 1 %}Duty{% else %}Duties{% endif %}
+            </span>
+            {% endif %}
+        </div>
+        <div class="p-3">
+            {% if ctx.active_duties %}
+            <div class="row g-3">
+                {% for a in ctx.active_duties %}
+                <div class="col-md-6 col-xl-4">
+                    <div class="p-3 rounded-4 border h-100 d-flex flex-column justify-content-between position-relative shadow-sm" style="background:var(--pill-bg);">
+                        <div>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge {% if a.duty.priority == 'high' %}bg-danger{% elif a.duty.priority == 'critical' %}bg-danger{% else %}bg-warning text-dark{% endif %} rounded-pill px-2 py-1 x-small fw-semibold">
+                                    {{ a.duty.get_priority_display|default:a.duty.priority|upper }} PRIORITY
+                                </span>
+                                {% if a.is_on_shift_now %}
+                                <span class="badge bg-success text-white rounded-pill px-2 py-1 x-small pulse-badge">
+                                    <span class="pulse-dot"></span> ON DUTY
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary rounded-pill px-2 py-1 x-small">
+                                    Off Duty
+                                </span>
+                                {% endif %}
+                            </div>
+
+                            <h6 class="fw-bold text-truncate mb-1" style="color:var(--text-main);">{{ a.duty_title }}</h6>
+                            <p class="text-muted x-small mb-2"><i class="bi bi-tag me-1"></i>Template: {{ a.duty.name|default:"General Duty" }} ({{ a.duty.category }})</p>
+
+                            <div class="small mb-2">
+                                <div class="text-muted x-small fw-semibold text-uppercase">Assigned Location:</div>
+                                <div class="fw-medium text-truncate" style="color:var(--text-main);"><i class="bi bi-geo-alt me-1 text-primary"></i>{{ a.location_display }}</div>
+                            </div>
+
+                            <div class="small mb-2">
+                                <div class="text-muted x-small fw-semibold text-uppercase">Shift Timings:</div>
+                                <div class="fw-medium" style="color:var(--text-main);">
+                                    <i class="bi bi-clock me-1 text-primary"></i>
+                                    {% if a.shift_start and a.shift_end %}
+                                        {{ a.shift_start|time:"h:i A" }} – {{ a.shift_end|time:"h:i A" }}
+                                    {% else %}
+                                        Standard Shift Hours
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="mb-2">
+                                <div class="text-muted x-small fw-semibold text-uppercase mb-1">Active Days:</div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    {% for day in a.working_days_list %}
+                                    <span class="badge bg-light text-dark border x-small py-1 px-2">{{ day }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            {% if a.supervisor %}
+                            <div class="small text-muted mb-2">
+                                <i class="bi bi-person-check me-1"></i>Supervisor: <span class="fw-medium text-dark">{{ a.supervisor.get_full_name|default:a.supervisor.username }}</span>
+                            </div>
+                            {% endif %}
+
+                            {% if a.description %}
+                            <div class="p-2 rounded-3 bg-light-subtle border small x-small text-muted mb-2">
+                                <i class="bi bi-info-circle me-1"></i>{{ a.description|truncatewords:20 }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="pt-2 border-top mt-2 d-flex justify-content-between align-items-center">
+                            <span class="x-small text-muted">Scope: {{ a.duty.get_data_scope_display }}</span>
+                            <button type="button" class="btn btn-outline-secondary btn-xs rounded-pill px-2 py-1" data-bs-toggle="modal" data-bs-target="#modalHandover_{{ a.id }}" style="font-size:0.75rem;">
+                                <i class="bi bi-arrow-left-right me-1"></i>Handover
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {# Handover Modal for this duty #}
+                <div class="modal fade" id="modalHandover_{{ a.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow rounded-4">
+                            <form method="post" action="{% url 'dynamic_dashboard' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="duty_handover">
+                                <input type="hidden" name="assignment_id" value="{{ a.id }}">
+                                <div class="modal-header border-0 pb-0">
+                                    <h5 class="modal-title fw-bold"><i class="bi bi-arrow-left-right text-primary me-2"></i>Handover Duty: {{ a.duty_title }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body py-3">
+                                    <p class="small text-muted">Transfer this duty shift to an active colleague in emergency or scheduled rotation.</p>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Select Substitute Colleague *</label>
+                                        <select name="substitute_id" class="form-select" required>
+                                            <option value="" disabled selected>Choose active staff member...</option>
+                                            {% for sub in substitutes %}
+                                            <option value="{{ sub.id }}">{{ sub.name }} (Role: {{ sub.role_display_name }})</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Reason for Handover *</label>
+                                        <textarea name="reason" class="form-control" rows="3" placeholder="Provide brief reason (e.g. medical emergency, shift rotation, scheduled leave)..." required></textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-0 pt-0">
+                                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-primary rounded-pill px-4">Confirm Handover</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-shield-check fs-1 text-primary opacity-50 mb-2 d-block"></i>
+                <h6 class="fw-bold mb-1">No Active Duty Assignments</h6>
+                <p class="small mb-0">You are currently operating on standby with standard permissions authorized under role <strong>{{ ctx.role_name }}</strong>.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Dynamic Permission-Scoped KPI Metrics Deck ── #}
+    {% if 'kpis' in enabled_widgets and kpis %}
+    <div class="row g-3 mb-4">
+        {# Students KPI #}
+        {% if kpis.student %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.75rem;">Scoped Students</div>
+                    <h3 class="fw-bold mb-0 mt-1" style="color:var(--text-main);">{{ kpis.student.total }}</h3>
+                    <div class="x-small text-muted mt-1">
+                        <span class="text-success fw-semibold">{{ kpis.student.active }}</span> Active · {{ kpis.student.male }}M / {{ kpis.student.female }}F
+                    </div>
+                </div>
+                <div class="kpi-icon-box bg-primary-subtle text-primary">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Rooms & Beds KPI #}
+        {% if kpis.room %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.75rem;">Room Occupancy</div>
+                    <h3 class="fw-bold mb-0 mt-1" style="color:var(--text-main);">{{ kpis.room.occupancy_pct }}%</h3>
+                    <div class="x-small text-muted mt-1">
+                        <span class="text-primary fw-semibold">{{ kpis.room.occupied_beds }}</span> / {{ kpis.room.total_beds }} Beds ({{ kpis.room.total_rooms }} Rooms)
+                    </div>
+                </div>
+                <div class="kpi-icon-box bg-info-subtle text-info">
+                    <i class="bi bi-door-open-fill"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Leaves & Gate KPI #}
+        {% if kpis.leave %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.75rem;">Active Leaves / Passes</div>
+                    <h3 class="fw-bold mb-0 mt-1" style="color:var(--text-main);">{{ kpis.leave.students_outside }}</h3>
+                    <div class="x-small text-muted mt-1">
+                        <span class="text-warning fw-semibold">{{ kpis.leave.pending_leaves }}</span> Pending · {{ kpis.leave.approved_today }} Approved Today
+                    </div>
+                </div>
+                <div class="kpi-icon-box bg-warning-subtle text-warning">
+                    <i class="bi bi-box-arrow-right"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Complaints / Tasks KPI #}
+        {% if kpis.complaint %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.75rem;">Complaints / Tasks</div>
+                    <h3 class="fw-bold mb-0 mt-1" style="color:var(--text-main);">{{ kpis.complaint.open_tickets }}</h3>
+                    <div class="x-small text-muted mt-1">
+                        <span class="text-danger fw-semibold">{{ kpis.complaint.my_assigned }}</span> Assigned To You · {{ kpis.complaint.resolved }} Resolved
+                    </div>
+                </div>
+                <div class="kpi-icon-box bg-danger-subtle text-danger">
+                    <i class="bi bi-tools"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Attendance KPI #}
+        {% if kpis.attendance %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.75rem;">Today's Attendance</div>
+                    <h3 class="fw-bold mb-0 mt-1" style="color:var(--text-main);">{{ kpis.attendance.attendance_pct }}%</h3>
+                    <div class="x-small text-muted mt-1">
+                        <span class="text-success fw-semibold">{{ kpis.attendance.present }}</span> Present · {{ kpis.attendance.absent }} Absent
+                    </div>
+                </div>
+                <div class="kpi-icon-box bg-success-subtle text-success">
+                    <i class="bi bi-calendar-check-fill"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Fee KPI #}
+        {% if kpis.fee %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.75rem;">Monthly Collection</div>
+                    <h3 class="fw-bold mb-0 mt-1" style="color:var(--text-main);">₹{{ kpis.fee.monthly_collected|floatformat:0 }}</h3>
+                    <div class="x-small text-muted mt-1">
+                        Total ₹{{ kpis.fee.total_collected|floatformat:0 }} ({{ kpis.fee.transaction_count }} Txns)
+                    </div>
+                </div>
+                <div class="kpi-icon-box bg-success-subtle text-success">
+                    <i class="bi bi-cash-coin"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Shift Compliance KPI #}
+        {% if kpis.duty %}
+        <div class="col-sm-6 col-xl-3">
+            <div class="kpi-card">
+                <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size:0.75rem;">Shift Compliance</div>
+                    <h3 class="fw-bold mb-0 mt-1" style="color:var(--text-main);">
+                        {% if kpis.duty.is_on_shift %}<span class="text-success">On Duty</span>{% else %}<span class="text-muted">Standby</span>{% endif %}
+                    </h3>
+                    <div class="x-small text-muted mt-1">
+                        {{ kpis.duty.total_active }} Total Duty Plan(s) Registered
+                    </div>
+                </div>
+                <div class="kpi-icon-box bg-secondary-subtle text-secondary">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── Main Grid Layout (Left: Operations & Infrastructure, Right: Quick Actions & Feeds) ── #}
+    <div class="row g-4">
+        {# Left Column (8 cols) #}
+        <div class="col-lg-8">
+
+            {# Actionable Tasks Queue #}
+            {% if 'actionable_tasks' in enabled_widgets %}
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="bi bi-check2-square fs-5"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="color:var(--text-main);">Actionable Tasks & Operations Queue</h6>
+                            <small class="text-muted">High priority items, assigned maintenance, and verification orders</small>
+                        </div>
+                    </div>
+                    {% if actionable_tasks %}
+                    <span class="badge bg-warning text-dark rounded-pill px-3 py-1 fw-semibold">{{ actionable_tasks|length }} Pending</span>
+                    {% endif %}
+                </div>
+                <div class="p-3">
+                    {% if actionable_tasks %}
+                    <div class="d-flex flex-column gap-2">
+                        {% for t in actionable_tasks %}
+                        <div class="p-3 rounded-4 border d-flex align-items-center justify-content-between flex-wrap gap-2 shadow-sm" style="background:var(--pill-bg);">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="p-2 rounded-circle {% if t.priority == 'critical' %}bg-danger-subtle text-danger{% elif t.priority == 'high' %}bg-warning-subtle text-warning{% else %}bg-primary-subtle text-primary{% endif %}">
+                                    <i class="bi {% if t.type == 'complaint' %}bi-tools{% elif t.type == 'leave_approval' %}bi-card-checklist{% elif t.type == 'gate_verification' %}bi-qr-code-scan{% else %}bi-pin-angle{% endif %} fs-5"></i>
+                                </div>
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <h6 class="fw-bold mb-0" style="color:var(--text-main);">{{ t.title }}</h6>
+                                        <span class="badge bg-light text-dark border x-small">{{ t.category }}</span>
+                                    </div>
+                                    <p class="mb-0 text-muted small mt-1">{{ t.description }}</p>
+                                </div>
+                            </div>
+                            <div>
+                                <a href="{{ t.action_url }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-medium">
+                                    {{ t.action_label }} <i class="bi bi-arrow-right ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-check-circle fs-1 text-success opacity-50 mb-2 d-block"></i>
+                        <h6 class="fw-bold mb-1">All Caught Up!</h6>
+                        <p class="small mb-0">No pending actionable tasks currently require your attention in your assigned scope.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# Location & Infrastructure Overview #}
+            {% if 'location_overview' in enabled_widgets and location_overview and location_overview.buildings %}
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-info-subtle text-info rounded-3"><i class="bi bi-building fs-5"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="color:var(--text-main);">Assigned Location Status & Capacity</h6>
+                            <small class="text-muted">Live room, bed, and occupancy statistics in your authorized zone</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div class="row g-3">
+                        {% for b in location_overview.buildings %}
+                        <div class="col-md-6">
+                            <div class="p-3 rounded-4 border shadow-sm h-100" style="background:var(--pill-bg);">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <h6 class="fw-bold mb-0" style="color:var(--text-main);">{{ b.name }}</h6>
+                                    <span class="badge bg-light text-dark border x-small">{{ b.gender }} Wing</span>
+                                </div>
+                                <div class="d-flex justify-content-between text-muted x-small mb-1">
+                                    <span>Occupancy ({{ b.occupied_count }}/{{ b.bed_count }} Beds)</span>
+                                    <span class="fw-bold text-primary">{{ b.occupancy_pct }}%</span>
+                                </div>
+                                <div class="progress mb-3" style="height: 7px; border-radius: 4px;">
+                                    <div class="progress-bar bg-primary" role="progressbar" style="width: {{ b.occupancy_pct }}%;"></div>
+                                </div>
+                                <div class="d-flex justify-content-between text-muted x-small">
+                                    <span><i class="bi bi-layers me-1"></i>{{ b.total_floors }} Floors</span>
+                                    <span><i class="bi bi-door-open me-1"></i>{{ b.room_count }} Rooms</span>
+                                    <span class="text-success fw-semibold"><i class="bi bi-check2-circle me-1"></i>{{ b.vacant_count }} Vacant</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Weekly Shift Schedule & Duty Calendar #}
+            {% if 'shift_calendar' in enabled_widgets and shift_schedule %}
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-calendar3 fs-5"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="color:var(--text-main);">Weekly Shift Rotation & Calendar</h6>
+                            <small class="text-muted">7-day active shift breakdown for your assigned duties</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div class="row g-2">
+                        {% for day in shift_schedule %}
+                        <div class="col">
+                            <div class="day-pill {% if day.is_today %}active-today{% endif %} {% if day.duties %}has-shift{% endif %}">
+                                <div class="fw-bold small mb-1 {% if day.is_today %}text-primary{% else %}text-muted{% endif %}">{{ day.code }}</div>
+                                {% if day.duties %}
+                                    {% for d in day.duties %}
+                                    <div class="p-1 rounded-2 bg-light-subtle border mb-1 x-small text-truncate" title="{{ d.title }} ({{ d.time }})">
+                                        <div class="fw-semibold text-truncate" style="font-size:0.7rem;">{{ d.title }}</div>
+                                        <div class="text-muted" style="font-size:0.65rem;">{{ d.time }}</div>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="text-muted opacity-50 py-2 x-small" style="font-size:0.7rem;">Off</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        {# Right Column (4 cols) #}
+        <div class="col-lg-4">
+
+            {# Quick Actions Widget #}
+            {% if 'quick_actions' in enabled_widgets and quick_actions %}
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-primary-subtle text-primary rounded-3"><i class="bi bi-lightning-charge fs-5"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="color:var(--text-main);">Quick Actions</h6>
+                            <small class="text-muted">Shortcuts based on your role</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3 d-flex flex-column gap-2">
+                    {% for act in quick_actions %}
+                    {% if act.modal %}
+                    <a href="#" class="action-btn-item" data-bs-toggle="modal" data-bs-target="{{ act.url }}">
+                        <div class="p-2 rounded-3 bg-{{ act.bg }}-subtle text-{{ act.bg }}"><i class="bi {{ act.icon }}"></i></div>
+                        <div>
+                            <div>{{ act.title }}</div>
+                            <small class="text-muted d-block fw-normal x-small">{{ act.desc }}</small>
+                        </div>
+                    </a>
+                    {% else %}
+                    <a href="{{ act.url }}" class="action-btn-item">
+                        <div class="p-2 rounded-3 bg-{{ act.bg }}-subtle text-{{ act.bg }}"><i class="bi {{ act.icon }}"></i></div>
+                        <div>
+                            <div>{{ act.title }}</div>
+                            <small class="text-muted d-block fw-normal x-small">{{ act.desc }}</small>
+                        </div>
+                    </a>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# Pending Approvals Queue (if permitted) #}
+            {% if 'pending_approvals' in enabled_widgets and can_approve_leave and kpis.leave.pending_leaves > 0 %}
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="bi bi-hourglass-split fs-5"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="color:var(--text-main);">Pending Leave Approvals</h6>
+                            <small class="text-muted">Awaiting your authorization</small>
+                        </div>
+                    </div>
+                    <a href="{% url 'pending_leave' %}" class="btn btn-xs btn-outline-warning rounded-pill px-2 py-1 x-small fw-semibold">View All</a>
+                </div>
+                <div class="p-3">
+                    <p class="small text-muted mb-2">There are <strong>{{ kpis.leave.pending_leaves }}</strong> pending leave applications requiring approval in your zone.</p>
+                    <a href="{% url 'pending_leave' %}" class="btn btn-warning btn-sm w-100 rounded-pill fw-semibold shadow-sm text-dark">
+                        <i class="bi bi-check2-circle me-1"></i> Go to Approval Queue
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Recent Scoped Activities Widget #}
+            {% if 'recent_activities' in enabled_widgets and recent_activities %}
+            <div class="dash-card mb-4">
+                <div class="dash-card-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="p-2 bg-secondary-subtle text-secondary rounded-3"><i class="bi bi-clock-history fs-5"></i></div>
+                        <div>
+                            <h6 class="fw-bold mb-0" style="color:var(--text-main);">Recent Activity Log</h6>
+                            <small class="text-muted">Operations recorded in your scope</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div class="d-flex flex-column gap-3">
+                        {% for log in recent_activities %}
+                        <div class="d-flex gap-2">
+                            <div class="p-1 rounded-circle bg-light border align-self-start mt-1">
+                                <i class="bi bi-record-circle text-primary x-small"></i>
+                            </div>
+                            <div class="small">
+                                <div class="fw-semibold" style="color:var(--text-main);">{{ log.get_action_display }}</div>
+                                <div class="text-muted x-small">{{ log.details|truncatewords:15 }}</div>
+                                <div class="text-muted" style="font-size:0.7rem;">{{ log.timestamp|timesince }} ago</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+
+</div>
+
+{# ── Customize Dashboard Widgets Modal ── #}
+<div class="modal fade" id="modalCustomizeWidgets" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4">
+            <form method="post" action="{% url 'dashboard_save_widgets' %}">
+                {% csrf_token %}
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-sliders text-primary me-2"></i>Customize Dashboard Widgets</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <p class="small text-muted mb-3">Enable or disable dashboard modules according to your operational workflow.</p>
+                    <div class="d-flex flex-column gap-2">
+                        {% for w in all_widgets %}
+                        <div class="p-2 rounded-3 border d-flex align-items-center justify-content-between" style="background:var(--pill-bg);">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi {{ w.icon }} text-primary fs-5"></i>
+                                <div>
+                                    <div class="fw-semibold small" style="color:var(--text-main);">{{ w.name }}</div>
+                                    <div class="text-muted x-small">{{ w.desc }}</div>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input" type="checkbox" name="widgets" value="{{ w.key }}" id="widget_check_{{ w.key }}" {% if w.key in enabled_widgets %}checked{% endif %}>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">Save Layout</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh dynamic KPIs every 60 seconds
+setInterval(async () => {
+    try {
+        const res = await fetch("{% url 'dashboard_live_kpis' %}");
+        if (res.ok) {
+            const data = await res.json();
+            const now = new Date();
+            const timeStr = now.toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}) + ', ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const el = document.getElementById('dashLastUpdated');
+            if (el) el.textContent = timeStr;
+        }
+    } catch (e) {
+        // network or background refresh fail silently
+    }
+}, 60000);
+</script>
+{% endblock %}

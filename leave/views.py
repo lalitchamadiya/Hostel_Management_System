@@ -439,74 +439,8 @@ def qr_code_image(request, qr_token):
     return HttpResponse(buffer.getvalue(), content_type="image/png")
 
 @login_required(login_url='/authentication/login')
-@permission_required('leave', 'view')
 def security_dashboard(request):
-    from hms.models import DutyAssignment
-    assignment = DutyAssignment.objects.select_related('duty').filter(staff__user=request.user, is_active=True).first()
-
-    today = date.today()
-
-    # 1. Pending Exit Today: Leaves approved but exit_verified is False, scheduled for exit today or earlier
-    pending_exits = HostelLeave.objects.filter(
-        status='approved', 
-        exit_verified=False,
-        leave_from__lte=today
-    ).select_related('student')
-    
-    # 2. Student Outside Hostel (Can Entry Today): Exited, entry_verified is False, return date is today or earlier
-    students_outside = HostelLeave.objects.filter(
-        status='approved', 
-        exit_verified=True, 
-        entry_verified=False,
-        leave_to__lte=today
-    ).select_related('student')
-    
-    # 3. Returned Students Today: status is completed and entry_verified is True today
-    returned_students = HostelLeave.objects.filter(
-        status='completed', 
-        entry_verified=True,
-        entry_time__date=today
-    ).select_related('student').order_by('-entry_time')
-
-    if assignment and assignment.specific_location:
-        pending_exits = pending_exits.filter(student__allocated_beds__room__building__name__icontains=assignment.specific_location).distinct()
-        students_outside = students_outside.filter(student__allocated_beds__room__building__name__icontains=assignment.specific_location).distinct()
-        returned_students = returned_students.filter(student__allocated_beds__room__building__name__icontains=assignment.specific_location).distinct()
-
-    curr_now = timezone.now()
-    # Annotate dynamic states
-    for leave in pending_exits:
-        # Check active passes
-        active_qr = leave.qr_passes.filter(pass_type='EXIT', is_used=False).first()
-        if active_qr:
-            leave.qr_status = "Active" if curr_now <= active_qr.expires_at else "Expired"
-        else:
-            leave.qr_status = "No QR Pass Available"
-            
-    for leave in students_outside:
-        # Calculate dynamic status
-        if leave.leave_to and date.today() > leave.leave_to:
-            leave.current_status = "Overdue"
-        else:
-            leave.current_status = "Outside"
-            
-    for leave in returned_students:
-        # Compute duration
-        if leave.entry_time and leave.exit_time:
-            dur = leave.entry_time - leave.exit_time
-            hours, remainder = divmod(dur.total_seconds(), 3600)
-            minutes, _ = divmod(remainder, 60)
-            leave.duration_outside = f"{int(hours)}h {int(minutes)}m"
-        else:
-            leave.duration_outside = "Unknown"
-
-    context = {
-        'pending_exits': pending_exits,
-        'students_outside': students_outside,
-        'returned_students': returned_students,
-        'active_duty_assignment': assignment,
-    }
-    return render(request, 'leave/security_dashboard.html', context)
+    return redirect('dynamic_dashboard')
 
 @login_required(login_url='/authentication/login')
 @permission_required('leave', 'view')

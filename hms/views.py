@@ -61,8 +61,10 @@ def _get_safe_disk_usage():
 
 from .models import (
     StaffProfile, ComplaintTicket,
-    DutyAssignment, Duty, DutyPermission, DutyApprovalLog
+    DutyAssignment, Duty, DutyPermission, DutyApprovalLog,
+    UserDashboardPreference, RoleDashboardConfig
 )
+from .dashboard_services import DynamicDashboardService, UserDashboardContext
 from student.models import Student
 from room.models import HostelBuilding, Room, Bed
 from leave.models import HostelLeave
@@ -90,25 +92,23 @@ def _is_admin(user):
 @login_required(login_url='/authentication/login')
 def dashboard(request):
     user = request.user
-    role_name = None
-    try:
-        role_name = user.profile.role.name
-    except Exception:
-        pass
+    role = getattr(getattr(user, 'profile', None), 'role', None)
 
-    if role_name == 'Student':
-        return redirect('student_app:student_dashboard')
-    if role_name == 'Warden':
-        return redirect('warden_dashboard')
-    if role_name == 'Admin':
+    # Super Admin preservation: always route superadmin to existing superadmin_dashboard
+    if user.is_superuser or (role and role.is_superadmin) or (role and role.name == 'Admin'):
         return redirect('superadmin_dashboard')
-    if role_name in ('Security Guard', 'Security'):
-        return redirect('security_dashboard')
-    return redirect('superadmin_dashboard')
+
+    # Student routing
+    role_name = role.name if (role and role.is_active) else None
+    if role_name == 'Student' or hasattr(user, 'student'):
+        return redirect('student_app:student_dashboard')
+
+    # All other roles (Warden, Security Guard, Accountant, Cleaner, etc.) route to dynamic dashboard
+    return redirect('dynamic_dashboard')
 
 
 # ──────────────────────────────────────────────────────
-# SUPER ADMIN DASHBOARD
+# SUPER ADMIN DASHBOARD (PRESERVED WITHOUT MODIFICATION)
 # ──────────────────────────────────────────────────────
 @login_required(login_url='/authentication/login')
 def superadmin_dashboard(request):
@@ -117,13 +117,9 @@ def superadmin_dashboard(request):
             r_name = request.user.profile.role.name
         except Exception:
             r_name = None
-        if r_name == 'Warden':
-            return redirect('warden_dashboard')
-        elif r_name in ('Security Guard', 'Security'):
-            return redirect('security_dashboard')
-        elif r_name == 'Student' or hasattr(request.user, 'student'):
+        if r_name == 'Student' or hasattr(request.user, 'student'):
             return redirect('student_app:student_dashboard')
-        return redirect('student_app:student_dashboard')
+        return redirect('dynamic_dashboard')
 
     today = timezone.now().date()
     now = timezone.now()
@@ -1668,3 +1664,168 @@ def check_duty_conflict_ajax(request):
         'on_leave': on_leave,
         'leave_reason': leave_reason,
     })
+
+
+# ──────────────────────────────────────────────────────
+# DYNAMIC ROLE-BASED & DUTY-BASED DASHBOARD
+# ──────────────────────────────────────────────────────
+@login_required(login_url='/authentication/login')
+def dynamic_dashboard(request):
+    """
+    Enterprise Dynamic Dashboard for all non-Super Admin roles.
+    Dynamically renders widgets, KPIs, tasks, shift timetable, and quick actions
+    based on System Role permissions, Duty Assignments, and location scoping.
+    Super Admin dashboard is completely preserved without interference.
+    """
+    user = request.user
+    profile = getattr(user, 'profile', None)
+    role = profile.role if profile else None
+
+    # Preserve Super Admin: redirect Super Admin to superadmin_dashboard
+    if user.is_superuser or (role and role.is_superadmin) or (role and role.name == 'Admin'):
+        return redirect('superadmin_dashboard')
+
+    # Preserve Student: redirect to student_dashboard
+    if (role and role.name == 'Student') or hasattr(user, 'student'):
+        return redirect('student_app:student_dashboard')
+
+    # Handle POST actions (e.g. Duty Handover from dashboard modal)
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'duty_handover':
+            assignment_id = _safe_int(request.POST.get('assignment_id'))
+            substitute_id = _safe_int(request.POST.get('substitute_id'))
+            reason = request.POST.get('reason', '').strip()
+            if assignment_id and substitute_id:
+                assignment = DutyAssignment.objects.filter(id=assignment_id).first()
+                substitute = StaffProfile.objects.filter(id=substitute_id, status='active').first()
+                if assignment and substitute:
+                    from .duty_services import DutyWorkflowService
+                    ok, msg = DutyWorkflowService.process_handover(
+                        assignment=assignment,
+                        substitute_staff=substitute,
+                        actor_user=user,
+                        reason=reason
+                    )
+                    if ok:
+                        messages.success(request, f"Duty successfully handed over to {substitute.name}.")
+                    else:
+                        messages.error(request, f"Handover failed: {msg}")
+                else:
+                    messages.error(request, "Invalid assignment or substitute staff selected.")
+            return redirect('dynamic_dashboard')
+
+    # Build user context with effective permissions, duties, and location boundaries
+    ctx = DynamicDashboardService.build_user_dashboard_context(user)
+    kpis = DynamicDashboardService.get_scoped_kpis(ctx)
+    tasks = DynamicDashboardService.get_actionable_tasks(ctx)
+    shift_schedule = DynamicDashboardService.get_shift_schedule(ctx)
+    quick_actions = DynamicDashboardService.get_quick_actions(ctx)
+    location_overview = DynamicDashboardService.get_location_overview(ctx)
+    operational_alerts = DynamicDashboardService.get_operational_alerts(ctx)
+    recent_activities = DynamicDashboardService.get_recent_activities(ctx)
+    enabled_widgets = DynamicDashboardService.get_widget_preferences(user, ctx.role)
+    all_widgets = DynamicDashboardService.ALL_WIDGETS
+
+    # Substitutes for Handover modal
+    substitutes = StaffProfile.objects.filter(status='active').exclude(user=user).select_related('user')
+    if ctx.scoped_hostel_id:
+        substitutes = substitutes.filter(hostel_id=ctx.scoped_hostel_id)
+
+    context = {
+        'page_title': f"{ctx.role_name} Dashboard",
+        'ctx': ctx,
+        'kpis': kpis,
+        'tasks': tasks,
+        'shift_schedule': shift_schedule,
+        'quick_actions': quick_actions,
+        'location_overview': location_overview,
+        'operational_alerts': operational_alerts,
+        'recent_activities': recent_activities,
+        'enabled_widgets': enabled_widgets,
+        'all_widgets': all_widgets,
+        'substitutes': substitutes,
+        'can_approve_leave': ctx.can('leave', 'approve'),
+    }
+    return render(request, 'hms/dynamic_dashboard.html', context)
+
+
+@login_required(login_url='/authentication/login')
+def dashboard_live_kpis(request):
+    """AJAX endpoint for real-time periodic KPI refresh."""
+    ctx = DynamicDashboardService.build_user_dashboard_context(request.user)
+    kpis = DynamicDashboardService.get_scoped_kpis(ctx)
+    return JsonResponse({'status': 'success', 'kpis': kpis})
+
+
+@login_required(login_url='/authentication/login')
+def dashboard_save_widgets(request):
+    """Saves user customization for enabled dashboard widgets."""
+    if request.method == 'POST':
+        widgets = request.POST.getlist('widgets')
+        if not widgets:
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+                widgets = data.get('widgets', [])
+            except Exception:
+                pass
+        DynamicDashboardService.save_widget_preferences(request.user, widgets)
+        messages.success(request, "Dashboard widget preferences updated successfully.")
+    return redirect('dynamic_dashboard')
+
+
+@login_required(login_url='/authentication/login')
+def dashboard_quick_approve_leave(request, leave_id):
+    """1-click leave approval from dashboard actionable queue."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'POST method required'}, status=405)
+
+    ctx = DynamicDashboardService.build_user_dashboard_context(request.user)
+    if not ctx.can('leave', 'approve'):
+        return JsonResponse({'status': 'error', 'message': 'Forbidden: missing leave approve permission'}, status=403)
+
+    leave = get_object_or_404(HostelLeave, pk=leave_id)
+    if ctx.scoped_building_ids:
+        bed = Bed.objects.filter(student=leave.student).select_related('room__building').first()
+        if bed and bed.room.building_id not in ctx.scoped_building_ids:
+            return JsonResponse({'status': 'error', 'message': 'Unauthorized: student is outside your assigned building scope'}, status=403)
+
+    leave.status = 'approved'
+    leave.approved_by = request.user
+    leave.approved_at = timezone.now()
+    leave.save()
+
+    AuditLog.objects.create(
+        actor=request.user,
+        target_user=getattr(leave.student, 'user', None),
+        action='gate_pass',
+        details=f"Quick approved leave #{leave.id} for {leave.student.name} via Dynamic Dashboard"
+    )
+
+    return JsonResponse({'status': 'success', 'message': f'Leave for {leave.student.name} approved successfully.'})
+
+
+@login_required(login_url='/authentication/login')
+def dashboard_quick_verify_exit(request, leave_id):
+    """1-click gate exit verification from dashboard actionable queue."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'POST method required'}, status=405)
+
+    ctx = DynamicDashboardService.build_user_dashboard_context(request.user)
+    if not ctx.can('leave', 'verify'):
+        return JsonResponse({'status': 'error', 'message': 'Forbidden: missing leave verify permission'}, status=403)
+
+    leave = get_object_or_404(HostelLeave, pk=leave_id)
+    leave.exit_verified = True
+    leave.exit_verified_by = request.user
+    leave.exit_time = timezone.now()
+    leave.save()
+
+    AuditLog.objects.create(
+        actor=request.user,
+        target_user=getattr(leave.student, 'user', None),
+        action='gate_pass',
+        details=f"Quick verified gate exit for {leave.student.name} via Dynamic Dashboard"
+    )
+
+    return JsonResponse({'status': 'success', 'message': f'Gate exit verified for {leave.student.name}.'})

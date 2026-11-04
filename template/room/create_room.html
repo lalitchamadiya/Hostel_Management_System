@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %} | {% if action == 'Edit' %}Edit Room {{ room.room_number }}{% else %}Create New Room{% endif %}{% endblock %}
+{% block title %} | {% if action == 'Edit' and room %}Edit Room {{ room.room_number }}{% else %}Create New Room{% endif %}{% endblock %}
 
 {% block content %}
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -157,7 +157,7 @@
     <!-- Page Header -->
     <div class="page-header">
         <div>
-            <h4><i class="bi {% if action == 'Edit' %}bi-pencil-square{% else %}bi-building-add{% endif %} me-2 text-primary"></i>{% if action == 'Edit' %}Edit Room: {{ room.room_number }}{% else %}Create New Room{% endif %}</h4>
+            <h4><i class="bi {% if action == 'Edit' and room %}bi-pencil-square{% else %}bi-building-add{% endif %} me-2 text-primary"></i>{% if action == 'Edit' and room %}Edit Room: {{ room.room_number }}{% else %}Create New Room{% endif %}</h4>
             <p>{% if action == 'Edit' %}Modify existing room details and capacity{% else %}Add a new room to the hostel infrastructure{% endif %}</p>
         </div>
         <div class="d-flex gap-2">
@@ -195,7 +195,7 @@
     </div>
     {% endif %}
 
-    <form id="createRoomForm" action="{% if action == 'Edit' %}{% url 'edit_room' room.pk %}{% else %}{% url 'create_room' %}{% endif %}" method="post">
+    <form id="createRoomForm" action="{% if action == 'Edit' and room %}{% url 'edit_room' room.pk %}{% else %}{% url 'create_room' %}{% endif %}" method="post">
         {% csrf_token %}
         <div class="row g-4">
 
@@ -502,8 +502,8 @@ document.getElementById('id_building').addEventListener('change', async function
         const res = await fetch(`{% url 'get_floors' %}?building_id=${buildingId}`);
         const data = await res.json();
         
-        const targetFloor = "{{ form.floor.value|default:room.floor|default:'' }}";
-        const targetBlock = "{{ form.block.value|default:room.block|default:'' }}";
+        const targetFloor = "{% if room and room.floor %}{{ room.floor }}{% else %}{{ form.floor.value|default:'' }}{% endif %}";
+        const targetBlock = "{% if room and room.block %}{{ room.block }}{% else %}{{ form.block.value|default:'' }}{% endif %}";
 
         if (floorSelect && data.floors && data.floors.length > 0) {
             data.floors.forEach(f => {

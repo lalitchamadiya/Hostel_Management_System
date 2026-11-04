@@ -52,8 +52,8 @@ def check_perm(user, module_code, action):
     except Exception as e:
         pass
 
-    # 2. Fall back to standard Role-based check
-    if profile and profile.role:
+    # 2. Fall back to standard Role-based check (Fail-Closed: role must be active)
+    if profile and profile.role and profile.role.is_active:
         perm = profile.role.permissions.filter(module__code=module_code).first()
         if perm:
             return getattr(perm, f'can_{action}', False)

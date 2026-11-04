@@ -318,15 +318,22 @@ html[data-theme="light"] {
                   <span>Edit</span>
                 </a>
 
-                <!-- Delete -->
+                <!-- Delete with Role Protection -->
                 {% if not role.is_superadmin %}
-                <form action="{% url 'role_delete' role.pk %}" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete the role &quot;{{ role.name }}&quot;?');">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-icon-sm btn-outline-danger border-0 bg-danger-subtle text-danger" title="Delete Role">
-                    <i class="bi bi-trash3"></i>
-                    <span>Delete</span>
+                  {% if role.assigned_count > 0 %}
+                  <button type="button" class="btn btn-icon-sm btn-outline-secondary border-0 bg-secondary-subtle text-muted" disabled title="Role Protection: Cannot delete while {{ role.assigned_count }} user(s) are assigned. Reassign users first.">
+                    <i class="bi bi-lock-fill"></i>
+                    <span>In Use ({{ role.assigned_count }})</span>
                   </button>
-                </form>
+                  {% else %}
+                  <form action="{% url 'role_delete' role.pk %}" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete the role &quot;{{ role.name }}&quot;?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-icon-sm btn-outline-danger border-0 bg-danger-subtle text-danger" title="Delete Role">
+                      <i class="bi bi-trash3"></i>
+                      <span>Delete</span>
+                    </button>
+                  </form>
+                  {% endif %}
                 {% endif %}
               </div>
             </td>

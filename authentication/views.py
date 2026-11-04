@@ -325,7 +325,7 @@ class LoginView(View):
                         if last_changed and (timezone.now() - last_changed).days >= expiry_days:
                             return redirect('password_expired')
 
-                    if profile and profile.role:
+                    if profile and profile.role and profile.role.is_active:
                         role_name = profile.role.name
                         if role_name in ('Super Admin', 'Admin'):
                             return redirect('superadmin_dashboard')
@@ -337,12 +337,13 @@ class LoginView(View):
                             return redirect('superadmin_dashboard')
                         elif role_name in ('Security Guard', 'Security'):
                             return redirect('security_dashboard')
+                        else:
+                            return redirect('superadmin_dashboard')
                     elif user.is_superuser:
                         return redirect('superadmin_dashboard')
                     else:
+                        log_action(user, 'missing_role_access_blocked', user, details="User attempted login with missing or inactive role - redirected to no_role under Fail-Closed Security", request=request)
                         return redirect('no_role')
-
-                    return redirect('superadmin_dashboard')
 
                 messages.error(request, 'Account is not active')
                 return render(request, 'authentication/login.html', {'fieldValues': {'username': username}})
@@ -394,7 +395,7 @@ class LogoutView(View):
 
 def role_list(request):
 
-    roles = Role.objects.exclude(is_superadmin=True).order_by('-created_at')
+    roles = Role.objects.exclude(is_superadmin=True).annotate(assigned_count=Count('userprofile')).order_by('-created_at')
 
     return render(request, 'authentication/rbac/role_list.html', {'roles': roles})
 
@@ -742,13 +743,29 @@ def role_delete(request, pk):
 
     if role.is_superadmin:
 
-        messages.error(request, 'Super Admin role cannot be deleted.')
+        messages.error(request, 'Super Admin role is a protected system role and cannot be deleted.')
 
-    else:
+        return redirect('role_list')
 
-        role.delete()
+    assigned_users_count = UserProfile.objects.filter(role=role).count()
+    from hms.models import StaffProfile
+    assigned_staff_count = StaffProfile.objects.filter(user__profile__role=role).count()
+    total_assigned = max(assigned_users_count, assigned_staff_count)
 
-        messages.success(request, 'Role deleted successfully.')
+    if total_assigned > 0:
+        log_action(request.user, 'role_delete_blocked', None,
+                   f"Blocked deletion of role '{role.name}': currently assigned to {total_assigned} user(s)/staff member(s).", request)
+        messages.error(
+            request,
+            f"Role Protection: Cannot delete role '{role.name}' because {total_assigned} user(s) or staff member(s) are currently assigned to it. "
+            f"Please reassign all users to another role before deleting. Consider deactivating the role instead."
+        )
+        return redirect('role_list')
+
+    role_name = role.name
+    role.delete()
+    log_action(request.user, 'role_delete', None, f"Deleted role '{role_name}'", request)
+    messages.success(request, f"Role '{role_name}' deleted successfully.")
 
     return redirect('role_list')
 
@@ -1006,6 +1023,10 @@ def user_list(request):
 
 
 
+    missing_role_count = User.objects.filter(is_active=True, is_superuser=False).filter(
+        Q(profile__role__isnull=True) | Q(profile__role__is_active=False)
+    ).count()
+
     context = {
 
         'page_obj': page_obj,
@@ -1019,6 +1040,8 @@ def user_list(request):
         'role_filter': role_filter,
 
         'status_filter': status_filter,
+
+        'missing_role_count': missing_role_count,
 
         'page_title': 'User Management',
 

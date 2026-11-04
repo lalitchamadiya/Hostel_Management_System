@@ -49,12 +49,18 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold small text-secondary">Designation *</label>
-                                <select name="designation" id="designationSelect" class="form-select" required>
-                                    {% for val, lbl in designations %}
-                                    <option value="{{ val }}" {% if staff.designation == val %}selected{% endif %}>{{ lbl }}</option>
+                                <label class="form-label fw-semibold small text-secondary">Assigned System Role / Designation *</label>
+                                <select name="role" id="roleSelect" class="form-select" required>
+                                    <option value="" disabled {% if not staff.assigned_role %}selected{% endif %}>Select System Role...</option>
+                                    {% for r in roles %}
+                                    <option value="{{ r.id }}" data-role-name="{{ r.name }}" {% if staff.assigned_role.id == r.id %}selected{% endif %}>{{ r.name }}</option>
                                     {% endfor %}
                                 </select>
+                                {% if staff and not staff.has_valid_role %}
+                                <div class="text-danger small mt-1 fw-bold">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Role Missing – Reassignment Required
+                                </div>
+                                {% endif %}
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold small text-secondary">Working Shift <span id="shiftAdminBadge" class="badge bg-secondary bg-opacity-10 text-secondary border small ms-1 d-none">N/A for Admin</span></label>
@@ -118,13 +124,8 @@
                             </div>
                             
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold small text-secondary">System Role {% if not staff %}*{% endif %}</label>
-                                <select name="role" id="roleSelect" class="form-select bg-light" {% if not staff %}required{% endif %}>
-                                    <option value="" disabled {% if not staff %}selected{% endif %}>Select System Role...</option>
-                                    {% for r in roles %}
-                                    <option value="{{ r.id }}" data-role-name="{{ r.name }}" {% if staff.user.profile.role.id == r.id %}selected{% endif %}>{{ r.name }}</option>
-                                    {% endfor %}
-                                </select>
+                                <label class="form-label fw-semibold small text-secondary">Role Assignment Scope</label>
+                                <input type="text" class="form-control bg-light" id="roleDisplayInput" readonly value="{% if staff.assigned_role %}{{ staff.assigned_role.name }}{% else %}Assigned in Staff Information above{% endif %}">
                             </div>
 
                             <div class="col-md-6">

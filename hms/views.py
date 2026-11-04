@@ -334,10 +334,23 @@ def staff_list(request):
     from django.core.paginator import Paginator
     from hms.utils import sync_user_to_staff
 
-    # Auto-sync users with staff-related roles into StaffProfile
+    # Purge any Super Admin from StaffProfile
+    StaffProfile.objects.filter(
+        Q(user__is_superuser=True) |
+        Q(user__profile__role__is_superadmin=True) |
+        Q(user__profile__role__name__iexact='Super Admin')
+    ).delete()
+
+    # Auto-sync active non-superadmin, non-student users with roles
     try:
         staff_users = User.objects.filter(
             profile__role__isnull=False
+        ).exclude(
+            is_superuser=True
+        ).exclude(
+            profile__role__is_superadmin=True
+        ).exclude(
+            profile__role__name__iexact='Super Admin'
         ).exclude(
             profile__role__name__iexact='Student'
         ).select_related('profile', 'profile__role')
@@ -347,24 +360,53 @@ def staff_list(request):
         import logging
         logging.getLogger(__name__).warning("Staff auto-sync exception: %s", sync_err)
 
-    qs = StaffProfile.objects.select_related('user', 'user__profile').order_by('-id')
+    # Base QuerySet: Exclude Super Admins
+    qs = StaffProfile.objects.select_related('user', 'user__profile', 'user__profile__role').exclude(
+        user__is_superuser=True
+    ).exclude(
+        user__profile__role__is_superadmin=True
+    ).exclude(
+        user__profile__role__name__iexact='Super Admin'
+    ).order_by('-id')
+
+    # Available System Roles dynamically from Role Management (excluding Super Admin & Student)
+    available_roles = Role.objects.filter(
+        is_active=True
+    ).exclude(
+        is_superadmin=True
+    ).exclude(
+        name__iexact='Student'
+    ).exclude(
+        name__iexact='Super Admin'
+    ).order_by('name')
+
+    # Count staff accounts requiring role reassignment (missing, inactive, or unassigned)
+    all_staff_list = list(qs)
+    missing_role_count = sum(1 for s in all_staff_list if not s.has_valid_role)
 
     # ── Filters ──
     search = request.GET.get('q', '').strip()
-    designation_filter = request.GET.get('designation', '')
-    status_filter = request.GET.get('status', '')
-    shift_filter = request.GET.get('shift', '')
-    performance_filter = request.GET.get('performance', '')
+    role_filter = request.GET.get('role', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    shift_filter = request.GET.get('shift', '').strip()
+    performance_filter = request.GET.get('performance', '').strip()
 
     if search:
         qs = qs.filter(
             Q(name__icontains=search) |
             Q(email__icontains=search) |
             Q(phone__icontains=search) |
-            Q(designation__icontains=search)
+            Q(designation__icontains=search) |
+            Q(user__profile__role__name__icontains=search)
         )
-    if designation_filter:
-        qs = qs.filter(designation=designation_filter)
+    if role_filter:
+        if role_filter == 'missing':
+            # Filter accounts needing role reassignment
+            qs = qs.filter(Q(user__profile__role__isnull=True) | Q(user__profile__role__is_active=False))
+        elif role_filter.isdigit():
+            qs = qs.filter(user__profile__role__id=int(role_filter))
+        else:
+            qs = qs.filter(user__profile__role__name__iexact=role_filter)
     if status_filter:
         qs = qs.filter(status=status_filter)
     if shift_filter:
@@ -418,27 +460,35 @@ def staff_list(request):
     # ── Stats ──
     today = timezone.now().date()
     seven_days_ago = today - timezone.timedelta(days=7)
+    base_staff_qs = StaffProfile.objects.exclude(
+        user__is_superuser=True
+    ).exclude(
+        user__profile__role__is_superadmin=True
+    ).exclude(
+        user__profile__role__name__iexact='Super Admin'
+    )
     stats = {
-        'total': StaffProfile.objects.count(),
-        'active': StaffProfile.objects.filter(status='active').count(),
-        'inactive': StaffProfile.objects.filter(status='inactive').count(),
-        'on_leave': StaffProfile.objects.filter(status='on_leave').count(),
-        'new_this_week': StaffProfile.objects.filter(doj__gte=seven_days_ago).count(),
-        'designations': StaffProfile.objects.values('designation').distinct().count(),
+        'total': base_staff_qs.count(),
+        'active': base_staff_qs.filter(status='active').count(),
+        'inactive': base_staff_qs.filter(status='inactive').count(),
+        'on_leave': base_staff_qs.filter(status='on_leave').count(),
+        'new_this_week': base_staff_qs.filter(doj__gte=seven_days_ago).count(),
+        'designations': base_staff_qs.values('user__profile__role__name').distinct().count(),
     }
 
     context = {
         'page_obj': page_obj,
         'stats': stats,
         'search': search,
-        'designation_filter': designation_filter,
+        'role_filter': role_filter,
         'status_filter': status_filter,
         'shift_filter': shift_filter,
         'performance_filter': performance_filter,
-        'designations': StaffProfile.DESIGNATION_CHOICES,
+        'available_roles': available_roles,
         'shifts': StaffProfile.SHIFT_CHOICES,
         'statuses': StaffProfile.STATUS_CHOICES,
         'performances': StaffProfile.PERFORMANCE_CHOICES,
+        'missing_role_count': missing_role_count,
         'page_title': 'Staff Management',
     }
     return render(request, 'hms/staff_list.html', context)
@@ -449,14 +499,14 @@ def staff_create(request):
     if not _is_admin(request.user):
         return redirect('dashboard')
     
-    roles = Role.objects.filter(is_active=True)
+    roles = Role.objects.filter(is_active=True).exclude(is_superadmin=True).exclude(name__iexact='Student').exclude(name__iexact='Super Admin').order_by('name')
     
     if request.method == 'POST':
         data = request.POST
         name = data.get('name', '').strip()
         email = data.get('email', '').strip()
         phone = data.get('phone', '').strip()
-        designation = data.get('designation', '')
+        role_id = data.get('role')
         salary = data.get('salary', 0) or 0
         shift = data.get('shift', 'morning')
         status = data.get('status', 'active')
@@ -468,23 +518,18 @@ def staff_create(request):
         username = data.get('username', '').strip()
         password = data.get('password', '')
         confirm_password = data.get('confirm_password', '')
-        role_id = data.get('role')
 
-        # Check if Admin designation or Admin system role
-        is_admin_role = False
+        role_obj = None
         if role_id:
-            role_obj = Role.objects.filter(id=role_id).first()
-            if role_obj and 'admin' in role_obj.name.lower():
-                is_admin_role = True
+            role_obj = Role.objects.filter(id=role_id, is_active=True).exclude(is_superadmin=True).exclude(name__iexact='Super Admin').first()
 
         errors = []
-        if designation == 'admin' or is_admin_role:
-            salary = 0.00
-            shift = 'morning'
         if not name:
             errors.append('Name is required.')
         if not email:
             errors.append('Email is required.')
+        if not role_obj:
+            errors.append('Please select a valid active System Role from Role Management.')
             
         if username:
             if User.objects.filter(username=username).exists():
@@ -495,13 +540,14 @@ def staff_create(request):
                 errors.append('Passwords do not match.')
             if len(password) < 6:
                 errors.append('Password must be at least 6 characters.')
+        else:
+            errors.append('Username is required for staff account creation.')
         
         if errors:
             for err in errors:
                 messages.error(request, err)
             return render(request, 'hms/staff_form.html', {
                 'page_title': 'Add Staff Member',
-                'designations': StaffProfile.DESIGNATION_CHOICES,
                 'shifts': StaffProfile.SHIFT_CHOICES,
                 'statuses': StaffProfile.STATUS_CHOICES,
                 'performances': StaffProfile.PERFORMANCE_CHOICES,
@@ -510,44 +556,37 @@ def staff_create(request):
             })
             
         try:
-            user = None
-            if username:
-                parts = name.split(' ', 1)
-                first_name = parts[0]
-                last_name = parts[1] if len(parts) > 1 else ''
-                
-                user = User.objects.create_user(
-                    username=username, email=email,
-                    first_name=first_name, last_name=last_name,
-                    password=password
-                )
-                user.is_active = (status == 'active')
-                user.save()
-                
-                # Create profile
-                profile = UserProfile.objects.create(user=user, phone=phone)
-                if role_id:
-                    try:
-                        role_obj = Role.objects.get(id=role_id)
-                        profile.role = role_obj
-                        group, _ = Group.objects.get_or_create(name=role_obj.name)
-                        group.user_set.add(user)
-                    except Role.DoesNotExist:
-                        pass
-                if request.FILES.get('photo'):
-                    uploaded = request.FILES['photo']
-                    profile.photo = uploaded
-                    b64_str = file_to_base64(uploaded)
-                    if b64_str:
-                        profile.photo_data = b64_str
-                profile.save()
+            parts = name.split(' ', 1)
+            first_name = parts[0]
+            last_name = parts[1] if len(parts) > 1 else ''
+            
+            user = User.objects.create_user(
+                username=username, email=email,
+                first_name=first_name, last_name=last_name,
+                password=password
+            )
+            user.is_active = (status == 'active')
+            user.save()
+            
+            # Create profile
+            profile = UserProfile.objects.create(user=user, phone=phone, role=role_obj)
+            if role_obj:
+                group, _ = Group.objects.get_or_create(name=role_obj.name)
+                group.user_set.add(user)
+            if request.FILES.get('photo'):
+                uploaded = request.FILES['photo']
+                profile.photo = uploaded
+                b64_str = file_to_base64(uploaded)
+                if b64_str:
+                    profile.photo_data = b64_str
+            profile.save()
                 
             StaffProfile.objects.create(
                 user=user,
                 name=name,
                 email=email,
                 phone=phone,
-                designation=designation,
+                designation=role_obj.name,
                 salary=salary,
                 shift=shift,
                 status=status,
@@ -555,7 +594,9 @@ def staff_create(request):
                 doj=doj,
                 documents=documents,
             )
-            messages.success(request, 'Staff member added successfully.')
+            from authentication.views import log_action
+            log_action(request.user, 'create_staff', user, f"Created staff profile '{name}' with role '{role_obj.name}'", request)
+            messages.success(request, f"Staff member '{name}' created successfully with role '{role_obj.name}'.")
             return redirect('staff_list')
         except Exception as e:
             messages.error(request, f'Error: {e}')
@@ -563,7 +604,6 @@ def staff_create(request):
 
     return render(request, 'hms/staff_form.html', {
         'page_title': 'Add Staff Member',
-        'designations': StaffProfile.DESIGNATION_CHOICES,
         'shifts': StaffProfile.SHIFT_CHOICES,
         'statuses': StaffProfile.STATUS_CHOICES,
         'performances': StaffProfile.PERFORMANCE_CHOICES,
@@ -576,14 +616,14 @@ def staff_edit(request, pk):
     if not _is_admin(request.user):
         return redirect('dashboard')
     staff = get_object_or_404(StaffProfile, pk=pk)
-    roles = Role.objects.filter(is_active=True)
+    roles = Role.objects.filter(is_active=True).exclude(is_superadmin=True).exclude(name__iexact='Student').exclude(name__iexact='Super Admin').order_by('name')
     
     if request.method == 'POST':
         data = request.POST
         name = data.get('name', '').strip()
         email = data.get('email', '').strip()
         phone = data.get('phone', '').strip()
-        designation = data.get('designation', staff.designation)
+        role_id = data.get('role')
         salary = data.get('salary', 0) or 0
         shift = data.get('shift', 'morning')
         status = data.get('status', 'active')
@@ -594,19 +634,18 @@ def staff_edit(request, pk):
         username = data.get('username', '').strip()
         password = data.get('password', '')
         confirm_password = data.get('confirm_password', '')
-        role_id = data.get('role')
 
-        # Check if Admin designation or Admin system role
-        is_admin_role = False
+        role_obj = None
         if role_id:
-            role_obj = Role.objects.filter(id=role_id).first()
-            if role_obj and 'admin' in role_obj.name.lower():
-                is_admin_role = True
+            role_obj = Role.objects.filter(id=role_id, is_active=True).exclude(is_superadmin=True).exclude(name__iexact='Super Admin').first()
 
         errors = []
-        if designation == 'admin' or is_admin_role:
-            salary = 0.00
-            shift = 'morning'
+        if not name:
+            errors.append('Name is required.')
+        if not email:
+            errors.append('Email is required.')
+        if not role_obj:
+            errors.append('Please select a valid active System Role from Role Management.')
         if staff.user:
             if User.objects.filter(email=email).exclude(id=staff.user.id).exists():
                 errors.append('Email is already in use by another user.')
@@ -631,7 +670,6 @@ def staff_edit(request, pk):
             return render(request, 'hms/staff_form.html', {
                 'page_title': 'Edit Staff Member',
                 'staff': staff,
-                'designations': StaffProfile.DESIGNATION_CHOICES,
                 'shifts': StaffProfile.SHIFT_CHOICES,
                 'statuses': StaffProfile.STATUS_CHOICES,
                 'performances': StaffProfile.PERFORMANCE_CHOICES,
@@ -653,18 +691,14 @@ def staff_edit(request, pk):
                 
                 profile, _ = UserProfile.objects.get_or_create(user=user)
                 profile.phone = phone
-                if role_id:
-                    try:
-                        role_obj = Role.objects.get(id=role_id)
-                        if profile.role and profile.role != role_obj:
-                            old_group = Group.objects.filter(name=profile.role.name).first()
-                            if old_group:
-                                old_group.user_set.remove(user)
-                        profile.role = role_obj
-                        group, _ = Group.objects.get_or_create(name=role_obj.name)
-                        group.user_set.add(user)
-                    except Role.DoesNotExist:
-                        pass
+                if role_obj:
+                    if profile.role and profile.role != role_obj:
+                        old_group = Group.objects.filter(name=profile.role.name).first()
+                        if old_group:
+                            old_group.user_set.remove(user)
+                    profile.role = role_obj
+                    group, _ = Group.objects.get_or_create(name=role_obj.name)
+                    group.user_set.add(user)
                 if request.FILES.get('photo'):
                     uploaded = request.FILES['photo']
                     profile.photo = uploaded
@@ -685,15 +719,10 @@ def staff_edit(request, pk):
                 user.is_active = (status == 'active')
                 user.save()
                 
-                profile = UserProfile.objects.create(user=user, phone=phone)
-                if role_id:
-                    try:
-                        role_obj = Role.objects.get(id=role_id)
-                        profile.role = role_obj
-                        group, _ = Group.objects.get_or_create(name=role_obj.name)
-                        group.user_set.add(user)
-                    except Role.DoesNotExist:
-                        pass
+                profile = UserProfile.objects.create(user=user, phone=phone, role=role_obj)
+                if role_obj:
+                    group, _ = Group.objects.get_or_create(name=role_obj.name)
+                    group.user_set.add(user)
                 if request.FILES.get('photo'):
                     uploaded = request.FILES['photo']
                     profile.photo = uploaded
@@ -706,14 +735,16 @@ def staff_edit(request, pk):
             staff.name = name
             staff.email = email
             staff.phone = phone
-            staff.designation = designation
+            staff.designation = role_obj.name if role_obj else ''
             staff.salary = salary
             staff.shift = shift
             staff.status = status
             staff.performance = performance
             staff.documents = documents
             staff.save()
-            messages.success(request, 'Staff member updated.')
+            from authentication.views import log_action
+            log_action(request.user, 'role_reassigned', staff.user, f"Updated staff profile '{name}' and assigned role '{role_obj.name if role_obj else 'None'}'", request)
+            messages.success(request, f"Staff member '{name}' updated successfully with role '{role_obj.name if role_obj else ''}'.")
             return redirect('staff_list')
         except Exception as e:
             messages.error(request, f'Error: {e}')
@@ -722,7 +753,6 @@ def staff_edit(request, pk):
     return render(request, 'hms/staff_form.html', {
         'page_title': 'Edit Staff Member',
         'staff': staff,
-        'designations': StaffProfile.DESIGNATION_CHOICES,
         'shifts': StaffProfile.SHIFT_CHOICES,
         'statuses': StaffProfile.STATUS_CHOICES,
         'performances': StaffProfile.PERFORMANCE_CHOICES,

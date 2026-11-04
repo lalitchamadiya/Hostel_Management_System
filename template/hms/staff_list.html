@@ -101,12 +101,13 @@
           </div>
         </div>
         <div class="col-6 col-sm-3 col-lg-2">
-          <label class="form-label small fw-semibold text-secondary mb-1">Designation</label>
-          <select name="designation" class="form-select form-select-sm bg-light">
-            <option value="">All Designations</option>
-            {% for val, lbl in designations %}
-            <option value="{{ val }}" {% if designation_filter == val %}selected{% endif %}>{{ lbl }}</option>
+          <label class="form-label small fw-semibold text-secondary mb-1">Role / Designation</label>
+          <select name="role" class="form-select form-select-sm bg-light">
+            <option value="">All Roles</option>
+            {% for r in available_roles %}
+            <option value="{{ r.id }}" {% if role_filter == r.id|stringformat:"s" %}selected{% endif %}>{{ r.name }}</option>
             {% endfor %}
+            <option value="missing" {% if role_filter == "missing" %}selected{% endif %}>⚠️ Role Missing</option>
           </select>
         </div>
         <div class="col-6 col-sm-3 col-lg-2">
@@ -149,6 +150,22 @@
       </form>
     </div>
   </div>
+
+  {# ── Missing Role Alert ────────────────────────────────────────────── #}
+  {% if missing_role_count > 0 %}
+  <div class="alert alert-warning border-0 shadow-sm rounded-4 d-flex flex-wrap align-items-center justify-content-between p-3 mb-3 gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-circle bg-warning bg-opacity-25 p-2 text-warning d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
+        <i class="bi bi-shield-exclamation fs-5"></i>
+      </div>
+      <div>
+        <h6 class="fw-bold mb-0 text-dark">Action Required: {{ missing_role_count }} Staff Account(s) with Missing or Inactive Roles</h6>
+        <p class="small text-muted mb-0">Under Fail-Closed Security, access is restricted until a valid role is assigned. Click 'Edit' on any record to assign a role.</p>
+      </div>
+    </div>
+    <a href="?role=missing" class="btn btn-warning btn-sm fw-semibold rounded-pill px-3">View Affected Records</a>
+  </div>
+  {% endif %}
 
   {# ── Staff Table ───────────────────────────────────────────────────── #}
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
@@ -216,9 +233,15 @@
                 <div class="text-muted" style="font-size:.72rem;">{{ s.phone|default:"—" }}</div>
               </td>
               <td>
-                <span class="badge bg-primary-subtle text-primary rounded-pill px-2 py-1">
-                  {{ s.get_designation_display }}
+                {% if s.has_valid_role %}
+                <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-1 fw-semibold">
+                  {{ s.role_display_name }}
                 </span>
+                {% else %}
+                <a href="{% url 'staff_edit' s.pk %}" class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2.5 py-1 fw-bold text-decoration-none d-inline-flex align-items-center" title="Role missing or inactive. Click to reassign.">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i> Role Missing – Reassignment Required
+                </a>
+                {% endif %}
               </td>
               <td class="small text-muted">{{ s.get_shift_display }}</td>
               <td class="fw-semibold small" style="color:#16a34a;">₹{{ s.salary|floatformat:0 }}</td>

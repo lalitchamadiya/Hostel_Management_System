@@ -1,63 +1,126 @@
-{% extends 'base_auth.html' %}
-{% load static %}
-
-{% block content %}
-
-<nav class="navbar top-nav sticky-top">
-    <div class="container-fluid justify-content-between align-items-center py-2 px-4">
-        <a class="navbar-brand mb-0 d-flex align-items-center gap-2 text-decoration-none" href="#">
-            {% if system_settings.logo_url %}
-            <img src="{{ system_settings.logo_url }}" alt="Logo" style="height: 32px; max-width: 44px; object-fit: contain;" class="rounded">
-            {% endif %}
-            <span class="fw-bold" style="color: var(--text-main, inherit);">{{ system_settings.system_name|default:"Hostel Management System" }}</span>
-        </a>
-        <button id="themeToggleBtn" class="btn btn-sm theme-toggle-btn" type="button" title="Toggle Theme" aria-label="Toggle Light/Dark Theme">
-          <i class="bi bi-moon-fill" id="themeIcon"></i>
-        </button>
-    </div>
-</nav>
-
-<div class="container d-flex justify-content-center align-items-center" style="min-height: calc(100vh - 80px);">
-    <div class="pro-card shadow-lg p-4 p-md-5 text-center" style="max-width: 600px; width: 100%; border-radius: 16px;">
-        <div class="d-inline-flex justify-content-center align-items-center bg-warning bg-opacity-10 text-warning rounded-circle mb-4 shadow-sm" style="width: 80px; height: 80px;">
-            <span class="material-symbols-outlined" style="font-size: 48px;">no_accounts</span>
-        </div>
-
-        <h3 class="fw-bold mb-2">No Role Assigned</h3>
-        <p class="text-muted fs-6 mb-4">
-            Your account currently has no active role assigned. You cannot access system features until a system administrator assigns a role to your profile.
-        </p>
-
-        <div class="bg-light dark-bg-secondary p-3 rounded-3 mb-4 text-start border">
-            <div class="d-flex align-items-center mb-2">
-                <span class="material-symbols-outlined text-primary me-2 fs-5">account_circle</span>
-                <span class="small text-muted me-2">Account:</span>
-                <strong class="small">{{ user.username }}</strong>
-            </div>
-            {% if user.email %}
-            <div class="d-flex align-items-center">
-                <span class="material-symbols-outlined text-primary me-2 fs-5">mail</span>
-                <span class="small text-muted me-2">Email:</span>
-                <strong class="small">{{ user.email }}</strong>
-            </div>
-            {% endif %}
-        </div>
-
-        <div class="alert alert-info border-0 shadow-sm d-flex align-items-center text-start mb-4" role="alert">
-            <span class="material-symbols-outlined fs-4 me-3 text-info">contact_support</span>
-            <div class="small">
-                <strong>Need access?</strong> Contact your Hostel Administrator or IT Helpdesk to configure your account permissions.
-            </div>
-        </div>
-
-        <form action="{% url 'logout' %}" method="post" class="d-grid">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-outline-danger btn-lg rounded-pill shadow-sm fs-6 py-2 fw-bold d-flex align-items-center justify-content-center gap-2">
-                <span class="material-symbols-outlined">logout</span>
-                Sign Out
-            </button>
-        </form>
-    </div>
-</div>
-
-{% endblock %}
+{% extends 'base_auth.html' %}
+
+{% load static %}
+
+
+
+{% block content %}
+
+
+
+<nav class="navbar top-nav sticky-top">
+
+    <div class="container-fluid justify-content-between align-items-center py-2 px-4">
+
+        <a class="navbar-brand mb-0 d-flex align-items-center gap-2 text-decoration-none" href="#">
+
+            {% if system_settings.logo_url %}
+
+            <img src="{{ system_settings.logo_url }}" alt="Logo" style="height: 32px; max-width: 44px; object-fit: contain;" class="rounded">
+
+            {% endif %}
+
+            <span class="fw-bold" style="color: var(--text-main, inherit);">{{ system_settings.system_name|default:"Hostel Management System" }}</span>
+
+        </a>
+
+        <button id="themeToggleBtn" class="btn btn-sm theme-toggle-btn" type="button" title="Toggle Theme" aria-label="Toggle Light/Dark Theme">
+
+          <i class="bi bi-moon-fill" id="themeIcon"></i>
+
+        </button>
+
+    </div>
+
+</nav>
+
+
+
+<div class="container d-flex justify-content-center align-items-center" style="min-height: calc(100vh - 80px);">
+
+    <div class="pro-card shadow-lg p-4 p-md-5 text-center" style="max-width: 600px; width: 100%; border-radius: 16px;">
+
+        <div class="d-inline-flex justify-content-center align-items-center bg-warning bg-opacity-10 text-warning rounded-circle mb-4 shadow-sm" style="width: 80px; height: 80px;">
+
+            <span class="material-symbols-outlined" style="font-size: 48px;">no_accounts</span>
+
+        </div>
+
+
+
+        <h3 class="fw-bold mb-2">Role Missing – Reassignment Required</h3>
+
+        <p class="text-muted fs-6 mb-4">
+
+            Your account currently has no valid active role assigned. Under Fail-Closed Security, access is restricted until an administrator assigns a valid role to your profile. Your account record and data remain completely intact.
+
+        </p>
+
+
+
+        <div class="bg-light dark-bg-secondary p-3 rounded-3 mb-4 text-start border">
+
+            <div class="d-flex align-items-center mb-2">
+
+                <span class="material-symbols-outlined text-primary me-2 fs-5">account_circle</span>
+
+                <span class="small text-muted me-2">Account:</span>
+
+                <strong class="small">{{ user.username }}</strong>
+
+            </div>
+
+            {% if user.email %}
+
+            <div class="d-flex align-items-center">
+
+                <span class="material-symbols-outlined text-primary me-2 fs-5">mail</span>
+
+                <span class="small text-muted me-2">Email:</span>
+
+                <strong class="small">{{ user.email }}</strong>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+
+
+        <div class="alert alert-info border-0 shadow-sm d-flex align-items-center text-start mb-4" role="alert">
+
+            <span class="material-symbols-outlined fs-4 me-3 text-info">contact_support</span>
+
+            <div class="small">
+
+                <strong>Need access?</strong> Contact your Hostel Administrator or IT Helpdesk to configure your account permissions.
+
+            </div>
+
+        </div>
+
+
+
+        <form action="{% url 'logout' %}" method="post" class="d-grid">
+
+            {% csrf_token %}
+
+            <button type="submit" class="btn btn-outline-danger btn-lg rounded-pill shadow-sm fs-6 py-2 fw-bold d-flex align-items-center justify-content-center gap-2">
+
+                <span class="material-symbols-outlined">logout</span>
+
+                Sign Out
+
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+
+{% endblock %}
+

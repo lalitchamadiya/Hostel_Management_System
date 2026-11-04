@@ -393,6 +393,7 @@ def create_room(request):
         'page_title': 'Create New Room',
         'action': 'Create',
         'form': form,
+        'room': None,
     }
     return render(request, 'room/create_room.html', context)
 

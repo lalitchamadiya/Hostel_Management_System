@@ -78,24 +78,18 @@ def file_to_base64(uploaded_file):
 
 def sync_user_to_staff(user):
     """
-    Syncs a User to StaffProfile if the user has a staff-related role (non-Student).
+    Syncs a User to StaffProfile if the user has a staff-related role (non-Student and non-SuperAdmin).
     """
     if not user:
         return None
     try:
         from hms.models import StaffProfile
-        role = getattr(getattr(user, 'profile', None), 'role', None)
-        if not role or role.name.strip().lower() == 'student':
+        # Never sync Super Admin
+        if user.is_superuser:
             return None
-
-        rname = role.name.lower()
-        desig = 'warden'
-        for key, _ in StaffProfile.DESIGNATION_CHOICES:
-            if key in rname:
-                desig = key
-                break
-        if desig == 'warden' and 'admin' in rname:
-            desig = 'admin'
+        role = getattr(getattr(user, 'profile', None), 'role', None)
+        if not role or role.is_superadmin or role.name.strip().lower() in ['super admin', 'superadmin', 'student']:
+            return None
 
         user_email = user.email or f"{user.username}@noblehostel.com"
         sp = StaffProfile.objects.filter(user=user).first()
@@ -112,7 +106,7 @@ def sync_user_to_staff(user):
             sp.email = user_email
             sp.phone = phone
             sp.status = status
-            sp.designation = desig
+            sp.designation = role.name
             sp.save()
         else:
             sp = StaffProfile.objects.create(
@@ -120,7 +114,7 @@ def sync_user_to_staff(user):
                 name=name,
                 email=user_email,
                 phone=phone,
-                designation=desig,
+                designation=role.name,
                 status=status,
                 shift='morning',
                 performance='good'

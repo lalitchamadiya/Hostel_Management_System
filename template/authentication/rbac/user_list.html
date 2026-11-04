@@ -112,6 +112,20 @@
   </div>
 
   {# ── Users Table ──────────────────────────────────────────────────── #}
+    {% if missing_role_count > 0 %}
+  <div class="alert alert-warning border-0 shadow-sm rounded-4 d-flex flex-wrap align-items-center justify-content-between p-3 mb-3 gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-circle bg-warning bg-opacity-25 p-2 text-warning d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
+        <i class="bi bi-shield-exclamation fs-5"></i>
+      </div>
+      <div>
+        <h6 class="fw-bold mb-0 text-dark">Action Required: {{ missing_role_count }} User Account(s) with Missing or Inactive Roles</h6>
+        <p class="small text-muted mb-0">Under Fail-Closed Security, access is restricted until a valid role is assigned. Click 'Reassign Role' below on any affected record.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
     <form method="post" id="bulkForm">
       {% csrf_token %}
@@ -173,12 +187,14 @@
                 <div class="text-muted" style="font-size:.72rem;">{{ u.profile.phone|default:"—" }}</div>
               </td>
               <td>
-                {% if u.profile.role %}
-                <span class="badge {% if u.profile.role.is_superadmin %}bg-danger-subtle text-danger{% else %}bg-primary-subtle text-primary{% endif %} rounded-pill px-2 py-1">
+                {% if u.profile.role and u.profile.role.is_active %}
+                <span class="badge {% if u.profile.role.is_superadmin %}bg-danger-subtle text-danger{% else %}bg-primary-subtle text-primary{% endif %} rounded-pill px-2.5 py-1">
                   {{ u.profile.role.name }}
                 </span>
                 {% else %}
-                <span class="badge bg-secondary-subtle text-secondary rounded-pill px-2 py-1">No Role</span>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1 fw-bold" title="Role missing or inactive. Please reassign.">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>Role Missing – Reassignment Required
+                </span>
                 {% endif %}
               </td>
               <td>

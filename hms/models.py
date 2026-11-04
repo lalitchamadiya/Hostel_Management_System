@@ -44,8 +44,32 @@ class StaffProfile(models.Model):
     doj = models.DateField(default=timezone.now)
     documents = models.CharField(max_length=255, blank=True, help_text="List of submitted docs, e.g. Aadhar, Police verification")
 
+    @property
+    def assigned_role(self):
+        """Returns the assigned System Role from linked user's profile."""
+        if self.user and hasattr(self.user, 'profile') and self.user.profile and self.user.profile.role:
+            return self.user.profile.role
+        return None
+
+    @property
+    def has_valid_role(self):
+        r = self.assigned_role
+        return bool(r and r.is_active)
+
+    @property
+    def role_display_name(self):
+        r = self.assigned_role
+        if r:
+            if not r.is_active:
+                return "Role Missing – Reassignment Required"
+            return r.name
+        return "Role Missing – Reassignment Required"
+
+    def get_designation_display(self):
+        return self.role_display_name
+
     def __str__(self):
-        return f"{self.name} - {self.get_designation_display()}"
+        return f"{self.name} - {self.role_display_name}"
 
     def save(self, *args, **kwargs):
         if self.phone:
@@ -53,6 +77,11 @@ class StaffProfile(models.Model):
                 self.phone = normalize_phone_number(self.phone)
             except Exception:
                 pass
+        r = self.assigned_role
+        if r:
+            self.designation = r.name[:50]
+        elif not self.designation:
+            self.designation = "Role Missing – Reassignment Required"[:50]
         super().save(*args, **kwargs)
 
 

@@ -308,9 +308,10 @@ class Student(models.Model):
                 pass
 
         # Convert uploaded photo into persistent Base64 photo_data for PostgreSQL
+        from django.core.files.uploadedfile import UploadedFile
         if self.photo:
             try:
-                if hasattr(self.photo, 'file'):
+                if hasattr(self.photo, 'file') and isinstance(self.photo.file, UploadedFile):
                     import base64, mimetypes
                     file_obj = self.photo.file
                     file_obj.seek(0)
@@ -322,18 +323,6 @@ class Student(models.Model):
                             mime_type = 'image/jpeg'
                         b64_str = base64.b64encode(raw_bytes).decode('utf-8')
                         self.photo_data = f"data:{mime_type};base64,{b64_str}"
-                elif not self.photo_data and hasattr(self.photo, 'name') and self.photo.name:
-                    import os, base64, mimetypes
-                    from django.conf import settings
-                    full_path = os.path.join(str(settings.MEDIA_ROOT), str(self.photo.name))
-                    if os.path.exists(full_path):
-                        with open(full_path, 'rb') as f:
-                            raw_bytes = f.read()
-                        if raw_bytes:
-                            mime, _ = mimetypes.guess_type(self.photo.name)
-                            mime = mime or 'image/jpeg'
-                            b64_str = base64.b64encode(raw_bytes).decode('utf-8')
-                            self.photo_data = f"data:{mime};base64,{b64_str}"
             except Exception:
                 pass
 

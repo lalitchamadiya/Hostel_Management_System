@@ -139,12 +139,17 @@ def update_student(request, pk):
         form = StudentForm(request.POST, request.FILES, instance=student)
         if form.is_valid():
             try:
+                has_new_photo = 'photo' in request.FILES and request.FILES['photo']
                 student = form.save(commit=False)
-                if 'photo' in request.FILES:
+                if has_new_photo:
                     from hms.utils import file_to_base64
                     b64_str = file_to_base64(request.FILES['photo'])
                     if b64_str:
                         student.photo_data = b64_str
+                else:
+                    old_s = Student.objects.filter(pk=student.pk).first()
+                    if old_s and old_s.photo_data:
+                        student.photo_data = old_s.photo_data
                 new_roll = form.cleaned_data['roll']
                 new_email = form.cleaned_data['email']
                 
@@ -229,6 +234,16 @@ def view_student(request, pk):
 @permission_required('student', 'delete')
 def delete_student(request, pk):
     student = get_object_or_404(Student, pk=pk)
+
+    # Prevent deleting student if currently allocated to a bed
+    from room.models import Bed
+    allocated_bed = Bed.objects.filter(student=student).select_related('room').first()
+    if allocated_bed:
+        messages.error(
+            request,
+            f"Cannot delete student '{student.name}': Currently allocated to Room {allocated_bed.room.room_number}, Bed #{allocated_bed.bed_number}. Please vacate the bed first."
+        )
+        return redirect('student_list')
 
     if request.method == 'POST':
         # deleting the user cascades to the Student record

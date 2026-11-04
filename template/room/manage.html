@@ -130,7 +130,7 @@
                                     {{ roomDetails.room_number }}
                                 </div>
                                 <div class="d-flex flex-column">
-                                    <span class="fw-bold text-dark">Unit #{{ roomDetails.room_number }}{% if roomDetails.room_name %} &ndash; {{ roomDetails.room_name }}{% endif %}</span>
+                                    <span class="fw-bold text-dark">Room {{ roomDetails.room_number }}</span>
                                     <span class="text-muted" style="font-size: 0.7rem;">ID: RO-{{ roomDetails.id }}</span>
                                 </div>
                             </div>
@@ -215,7 +215,7 @@
                 </div>
                 <div class="modal-body py-4">
                     <p class="text-muted mb-1">Confirm deletion of resource:</p>
-                    <p class="fs-4 fw-bold text-dark">ROOM #{{ roomDetails.room_number }}</p>
+                    <p class="fs-4 fw-bold text-dark">ROOM {{ roomDetails.room_number }}</p>
                     <div class="alert alert-warning border-0 small mt-3 mb-0" style="background: #fffbeb; color: #92400e;">
                         <i class="bi bi-exclamation-triangle me-2"></i>This action will remove all bed links and historical data for this room.
                     </div>

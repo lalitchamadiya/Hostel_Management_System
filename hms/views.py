@@ -332,6 +332,20 @@ def staff_list(request):
         return redirect('dashboard')
 
     from django.core.paginator import Paginator
+    from hms.utils import sync_user_to_staff
+
+    # Auto-sync users with staff-related roles into StaffProfile
+    try:
+        staff_users = User.objects.filter(
+            profile__role__isnull=False
+        ).exclude(
+            profile__role__name__iexact='Student'
+        ).select_related('profile', 'profile__role')
+        for u in staff_users:
+            sync_user_to_staff(u)
+    except Exception as sync_err:
+        import logging
+        logging.getLogger(__name__).warning("Staff auto-sync exception: %s", sync_err)
 
     qs = StaffProfile.objects.select_related('user', 'user__profile').order_by('-id')
 

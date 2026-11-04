@@ -1165,6 +1165,11 @@ def user_create(request):
 
 
         log_action(request.user, 'create', user, f'Created user {username}', request)
+        try:
+            from hms.utils import sync_user_to_staff
+            sync_user_to_staff(user)
+        except Exception:
+            pass
 
         messages.success(request, f"User '{username}' created successfully.")
 
@@ -1301,6 +1306,12 @@ def user_edit(request, pk):
 
 
         log_action(request.user, 'edit', target, f'Edited user {target.username}', request)
+
+        try:
+            from hms.utils import sync_user_to_staff
+            sync_user_to_staff(target)
+        except Exception:
+            pass
 
         messages.success(request, f"User '{target.username}' updated successfully.")
 

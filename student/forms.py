@@ -124,13 +124,18 @@ class StudentForm(forms.ModelForm):
         return phone
 
     def save(self, commit=True):
+        from django.core.files.uploadedfile import UploadedFile
         instance = super().save(commit=False)
         photo_file = self.cleaned_data.get('photo')
-        if photo_file and hasattr(photo_file, 'read'):
+        if photo_file and isinstance(photo_file, UploadedFile):
             from hms.utils import file_to_base64
             b64_str = file_to_base64(photo_file)
             if b64_str:
                 instance.photo_data = b64_str
+        elif self.instance.pk:
+            old_inst = Student.objects.filter(pk=self.instance.pk).first()
+            if old_inst and old_inst.photo_data:
+                instance.photo_data = old_inst.photo_data
         if commit:
             instance.save()
         return instance

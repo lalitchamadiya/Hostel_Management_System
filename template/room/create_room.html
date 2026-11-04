@@ -502,13 +502,20 @@ document.getElementById('id_building').addEventListener('change', async function
         const res = await fetch(`{% url 'get_floors' %}?building_id=${buildingId}`);
         const data = await res.json();
         
+        const targetFloor = "{{ form.floor.value|default:room.floor|default:'' }}";
+        const targetBlock = "{{ form.block.value|default:room.block|default:'' }}";
+
         if (floorSelect && data.floors && data.floors.length > 0) {
             data.floors.forEach(f => {
                 const opt = document.createElement('option');
                 opt.value = f.id;
                 opt.textContent = f.label;
+                if (String(f.id) === String(targetFloor)) {
+                    opt.selected = true;
+                }
                 floorSelect.appendChild(opt);
             });
+            if (targetFloor) floorSelect.value = targetFloor;
         }
 
         if (blockSelect && data.blocks && data.blocks.length > 0) {
@@ -516,8 +523,12 @@ document.getElementById('id_building').addEventListener('change', async function
                 const opt = document.createElement('option');
                 opt.value = b.id;
                 opt.textContent = b.label;
+                if (String(b.id) === String(targetBlock)) {
+                    opt.selected = true;
+                }
                 blockSelect.appendChild(opt);
             });
+            if (targetBlock) blockSelect.value = targetBlock;
         }
     } catch (e) {
         console.error('Error fetching dynamic building metadata:', e);

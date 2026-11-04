@@ -75,3 +75,58 @@ def file_to_base64(uploaded_file):
         print(f"Error encoding file to Base64: {e}")
         return None
 
+
+def sync_user_to_staff(user):
+    """
+    Syncs a User to StaffProfile if the user has a staff-related role (non-Student).
+    """
+    if not user:
+        return None
+    try:
+        from hms.models import StaffProfile
+        role = getattr(getattr(user, 'profile', None), 'role', None)
+        if not role or role.name.strip().lower() == 'student':
+            return None
+
+        rname = role.name.lower()
+        desig = 'warden'
+        for key, _ in StaffProfile.DESIGNATION_CHOICES:
+            if key in rname:
+                desig = key
+                break
+        if desig == 'warden' and 'admin' in rname:
+            desig = 'admin'
+
+        user_email = user.email or f"{user.username}@noblehostel.com"
+        sp = StaffProfile.objects.filter(user=user).first()
+        if not sp:
+            sp = StaffProfile.objects.filter(email=user_email).first()
+
+        name = user.get_full_name().strip() or user.username
+        phone = getattr(getattr(user, 'profile', None), 'phone', '') or ''
+        status = 'active' if user.is_active else 'inactive'
+
+        if sp:
+            sp.user = user
+            sp.name = name
+            sp.email = user_email
+            sp.phone = phone
+            sp.status = status
+            sp.designation = desig
+            sp.save()
+        else:
+            sp = StaffProfile.objects.create(
+                user=user,
+                name=name,
+                email=user_email,
+                phone=phone,
+                designation=desig,
+                status=status,
+                shift='morning',
+                performance='good'
+            )
+        return sp
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Error syncing user to staff: %s", e)
+        return None

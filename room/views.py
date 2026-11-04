@@ -264,12 +264,45 @@ def room_allocate(request):
 @login_required(login_url='/authentication/login')
 @permission_required('room', 'add')
 def room_auto_allocate(request):
-    assigned_student_ids = Bed.objects.filter(student__isnull=False).values_list('student_id', flat=True)
-    unallocated_students = Student.objects.filter(status='Active').exclude(student_id__in=assigned_student_ids)
+    active_b_ids = set(HostelBuilding.objects.filter(is_active=True).values_list('id', flat=True))
+    assigned_student_ids = set(Bed.objects.filter(student__isnull=False).values_list('student_id', flat=True))
+    unallocated_students = list(Student.objects.filter(status='Active').exclude(student_id__in=assigned_student_ids).order_by('name'))
+
+    vacant_beds_qs = Bed.objects.filter(
+        student__isnull=True,
+        room__building_id__in=active_b_ids,
+        room__status='AVAILABLE'
+    ).select_related('room', 'room__building').order_by('room__room_number', 'bed_number')
+
+    boys_beds = [b for b in vacant_beds_qs if b.room.gender == 'Boys']
+    girls_beds = [b for b in vacant_beds_qs if b.room.gender == 'Girls']
+
+    recommendations = []
+    used_bed_ids = set()
+
+    for student in unallocated_students:
+        st_gender = 'Boys' if student.gender == 'Male' else 'Girls'
+        target_beds = boys_beds if st_gender == 'Boys' else girls_beds
+        matched_bed = None
+        for b in target_beds:
+            if b.id not in used_bed_ids:
+                matched_bed = b
+                used_bed_ids.add(b.id)
+                break
+        recommendations.append({
+            'student': student,
+            'bed': matched_bed,
+            'room': matched_bed.room if matched_bed else None,
+            'building': matched_bed.room.building if matched_bed else None,
+        })
 
     context = {
         'page_title': 'Auto Allocate Rooms',
         'unallocated_students': unallocated_students,
+        'unallocated_count': len(unallocated_students),
+        'vacant_beds_count': vacant_beds_qs.count(),
+        'recommendations': recommendations,
+        'matched_count': len(used_bed_ids),
     }
     return render(request, 'room/auto_allocate.html', context)
 
@@ -278,28 +311,30 @@ def room_auto_allocate(request):
 @permission_required('room', 'add')
 def room_auto_allocate_execute(request):
     if request.method == 'POST':
-        active_b_ids = set(HostelBuilding.objects.filter(is_active=True).values_list('id', flat=True))
-        assigned_student_ids = set(Bed.objects.filter(student__isnull=False).values_list('student_id', flat=True))
+        from django.db import transaction
+        with transaction.atomic():
+            active_b_ids = set(HostelBuilding.objects.filter(is_active=True).values_list('id', flat=True))
+            assigned_student_ids = set(Bed.objects.filter(student__isnull=False).values_list('student_id', flat=True))
+            unallocated_students = list(Student.objects.filter(status='Active').exclude(student_id__in=assigned_student_ids).order_by('student_id'))
 
-        unallocated_students = list(Student.objects.filter(status='Active').exclude(student_id__in=assigned_student_ids))
+            allocated_count = 0
+            for student in unallocated_students:
+                st_gender = 'Boys' if student.gender == 'Male' else 'Girls'
+                vacant_bed = Bed.objects.select_for_update().filter(
+                    student__isnull=True,
+                    room__building_id__in=active_b_ids,
+                    room__gender=st_gender,
+                    room__status='AVAILABLE'
+                ).order_by('room__room_number', 'bed_number').first()
+                if vacant_bed:
+                    vacant_bed.student = student
+                    vacant_bed.save()
+                    allocated_count += 1
 
-        allocated_count = 0
-        for student in unallocated_students:
-            st_gender = 'Boys' if student.gender == 'Male' else 'Girls'
-            vacant_bed = Bed.objects.filter(
-                student__isnull=True,
-                room__building_id__in=active_b_ids,
-                room__gender=st_gender
-            ).first()
-            if vacant_bed:
-                vacant_bed.student = student
-                vacant_bed.save()
-                allocated_count += 1
-
-        if allocated_count > 0:
-            messages.success(request, f'Successfully auto-allocated {allocated_count} residents to vacant hostel beds.')
-        else:
-            messages.info(request, 'No unallocated students or vacant beds in active buildings available for auto-allocation.')
+            if allocated_count > 0:
+                messages.success(request, f'Successfully auto-allocated {allocated_count} resident(s) to vacant hostel beds.')
+            else:
+                messages.info(request, 'No unallocated students or matching vacant beds in active buildings available for auto-allocation.')
 
     return redirect('room_manage')
 
@@ -334,7 +369,7 @@ def create_room(request):
             room_obj = Room.objects.create(
                 building=b_info,
                 room_number=cleaned.get('room_number'),
-                room_name=cleaned.get('room_name') or f"Unit #{cleaned.get('room_number')}",
+                room_name=cleaned.get('room_name') or f"Room {cleaned.get('room_number')}",
                 block=cleaned.get('block', 'A'),
                 floor=cleaned.get('floor', 1),
                 room_type=r_type,
@@ -397,15 +432,36 @@ def edit_room(request, pk):
             room_obj.description = cleaned.get('description', '')
             room_obj.save()
 
-            current_beds = list(room_obj.beds.all())
+            current_beds = list(room_obj.beds.all().order_by('id'))
             if len(current_beds) < capacity:
                 for b_idx in range(len(current_beds) + 1, capacity + 1):
                     Bed.objects.create(room=room_obj, bed_number=str(b_idx), student=None)
             elif len(current_beds) > capacity:
-                for b in current_beds[capacity:]:
+                beds_to_delete = current_beds[capacity:]
+                occupied_beds = [b for b in beds_to_delete if b.student is not None]
+                if occupied_beds:
+                    occ_details = ", ".join([f"Bed #{b.bed_number} ({b.student.name})" for b in occupied_beds])
+                    messages.error(
+                        request,
+                        f"Cannot reduce room capacity to {capacity}: The following beds are currently occupied by students: {occ_details}. Please reallocate or vacate these residents before reducing room capacity."
+                    )
+                    return render(request, 'room/create_room.html', {
+                        'page_title': f"Edit Room {room_obj.room_number}",
+                        'action': 'Edit',
+                        'room': {
+                            'pk': room_obj.pk,
+                            'id': room_obj.id,
+                            'room_number': room_obj.room_number,
+                            'room_name': room_obj.room_name,
+                            'block': room_obj.block,
+                            'floor': room_obj.floor,
+                        },
+                        'form': form,
+                    })
+                for b in beds_to_delete:
                     b.delete()
 
-            messages.success(request, f"Room Unit #{cleaned.get('room_number')} updated successfully.")
+            messages.success(request, f"Room {cleaned.get('room_number')} updated successfully.")
             return redirect('room_manage')
     else:
         initial_data = {
@@ -428,6 +484,8 @@ def edit_room(request, pk):
         'id': room_obj.id,
         'room_number': room_obj.room_number,
         'room_name': room_obj.room_name,
+        'block': room_obj.block,
+        'floor': room_obj.floor,
     }
 
     context = {

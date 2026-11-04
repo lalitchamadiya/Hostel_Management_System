@@ -27,5 +27,10 @@ if os.getenv('AUTO_MIGRATE', 'True').lower() in ('true', '1') and not os.getenv(
             call_command('migrate', interactive=False, verbosity=0)
             call_command('seed_modules')
             call_command('seed_super_admin')
+        try:
+            from hms.views import ensure_default_duty_templates
+            ensure_default_duty_templates()
+        except Exception:
+            pass
     except Exception as e:
         print(f"Auto-migrate info: {e}")

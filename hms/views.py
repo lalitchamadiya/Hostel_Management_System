@@ -1,13 +1,52 @@
 import shutil
 import csv
 import os
+import datetime
+import ipaddress
+import json
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
+from django.template.loader import render_to_string
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
+
+logger = logging.getLogger(__name__)
+
+def _safe_int(val, default=None):
+    if val is None:
+        return default
+    val_str = str(val).strip()
+    if val_str.isdigit():
+        return int(val_str)
+    if val_str.startswith('-') and val_str[1:].isdigit():
+        return int(val_str)
+    return default
+
+def _safe_date(val, default=None):
+    if not val:
+        return default
+    if isinstance(val, (datetime.date, datetime.datetime)):
+        return val if isinstance(val, datetime.date) else val.date()
+    try:
+        return datetime.date.fromisoformat(str(val).strip())
+    except Exception:
+        return default
+
+def _safe_time(val, default=None):
+    if not val:
+        return default
+    if isinstance(val, datetime.time):
+        return val
+    try:
+        return datetime.time.fromisoformat(str(val).strip())
+    except Exception:
+        return default
 
 def _get_safe_disk_usage():
     try:
@@ -22,7 +61,7 @@ def _get_safe_disk_usage():
 
 from .models import (
     StaffProfile, ComplaintTicket,
-    DutyAssignment, Duty, DutyPermission
+    DutyAssignment, Duty, DutyPermission, DutyApprovalLog
 )
 from student.models import Student
 from room.models import HostelBuilding, Room, Bed
@@ -908,16 +947,102 @@ from hms.duty_services import DutyConflictService, DutyAuthorizationService, Dut
 from room.models import HostelBuilding, Room
 
 def _get_client_ip(request):
+    raw_ip = None
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        return x_forwarded_for.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
+        raw_ip = x_forwarded_for.split(',')[0].strip()
+    else:
+        raw_ip = request.META.get('REMOTE_ADDR')
+    if not raw_ip:
+        return None
+    raw_ip = str(raw_ip).strip()
+    if raw_ip.startswith('[') and ']' in raw_ip:
+        raw_ip = raw_ip[1:raw_ip.index(']')]
+    elif ':' in raw_ip and raw_ip.count(':') == 1:
+        raw_ip = raw_ip.split(':')[0]
+    try:
+        ipaddress.ip_address(raw_ip)
+        return raw_ip
+    except ValueError:
+        return None
+
+def ensure_default_duty_templates():
+    """Seeds standard duty templates if none currently exist in database."""
+    try:
+        if Duty.objects.exists():
+            return
+        defaults = [
+            {
+                'name': 'Hostel Warden Shift',
+                'category': 'Hostel Administration',
+                'priority': 'high',
+                'data_scope': 'BUILDING',
+                'start_time': datetime.time(8, 0),
+                'end_time': datetime.time(18, 0),
+                'description': 'Daytime hostel warden supervision across assigned building.',
+                'perms': {
+                    'student': ['view', 'add', 'edit', 'verify', 'print', 'export'],
+                    'room': ['view', 'add', 'edit', 'verify'],
+                    'leave': ['view', 'approve', 'reject', 'verify'],
+                    'attendance': ['view', 'add', 'edit', 'verify'],
+                    'complaint': ['view', 'add', 'edit', 'verify', 'assign'],
+                    'duty_management': ['view'],
+                }
+            },
+            {
+                'name': 'Campus Security Patrol',
+                'category': 'Campus Security',
+                'priority': 'critical',
+                'data_scope': 'ASSIGNED_LOCATION',
+                'start_time': datetime.time(20, 0),
+                'end_time': datetime.time(6, 0),
+                'description': 'Overnight gate and security monitoring at assigned entrance post.',
+                'perms': {
+                    'visitor': ['view', 'add', 'verify'],
+                    'student': ['view'],
+                    'complaint': ['view', 'add'],
+                    'duty_management': ['view'],
+                }
+            },
+            {
+                'name': 'Maintenance & Facilities Inspector',
+                'category': 'Maintenance',
+                'priority': 'medium',
+                'data_scope': 'BUILDING',
+                'start_time': datetime.time(9, 0),
+                'end_time': datetime.time(17, 0),
+                'description': 'Inspects room facilities, plumbing, and resolves student complaints.',
+                'perms': {
+                    'room': ['view', 'edit'],
+                    'complaint': ['view', 'edit', 'verify'],
+                    'duty_management': ['view'],
+                }
+            }
+        ]
+        for d_info in defaults:
+            duty = Duty.objects.create(
+                name=d_info['name'],
+                category=d_info['category'],
+                priority=d_info['priority'],
+                data_scope=d_info['data_scope'],
+                start_time=d_info['start_time'],
+                end_time=d_info['end_time'],
+                description=d_info['description'],
+                status='active'
+            )
+            for mod, acts in d_info['perms'].items():
+                kwargs = {f'can_{act}': True for act in acts}
+                DutyPermission.objects.create(duty=duty, module_name=mod, **kwargs)
+    except Exception as e:
+        logger.warning("ensure_default_duty_templates note: %s", e)
 
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'view')
 def duty_list(request):
     """Enterprise Duty Monitoring & Workforce Scheduling Dashboard."""
+    ensure_default_duty_templates()
+    ensure_default_duty_templates()
     # Base assignments queryset with full relationships
     assignments_qs = DutyAssignment.objects.select_related(
         'staff', 'staff__user', 'staff__user__profile', 'duty', 'building', 'room', 'hostel', 'supervisor'
@@ -1035,114 +1160,135 @@ def duty_list(request):
 def duty_assign(request):
     """Creates a new duty assignment with hierarchical location, conflict validation, and approval workflow."""
     if request.method == 'POST':
-        data = request.POST
-        staff_id = data.get('staff_id')
-        duty_id = data.get('duty_id')
-        duty_title = data.get('duty_title', '').strip()
-        building_id = data.get('building_id') or None
-        block = data.get('block_id', '').strip() or None
-        floor = data.get('floor_id') or None
-        room_id = data.get('room_id') or None
-        specific_location = data.get('specific_location', '').strip()
+        try:
+            data = request.POST
+            staff_id = _safe_int(data.get('staff_id'))
+            if not staff_id:
+                messages.error(request, "Please select a valid staff member.")
+                return redirect('duty_list')
 
-        start_date = data.get('start_date') or timezone.localtime(timezone.now()).date()
-        end_date = data.get('end_date') or None
-        shift_start = data.get('shift_start') or None
-        shift_end = data.get('shift_end') or None
-        working_days_list = data.getlist('working_days')
-        working_days = ",".join(working_days_list) if working_days_list else 'MON,TUE,WED,THU,FRI,SAT,SUN'
+            staff = StaffProfile.objects.filter(pk=staff_id).first()
+            if not staff:
+                messages.error(request, "Selected staff member not found.")
+                return redirect('duty_list')
 
-        supervisor_id = data.get('supervisor_id') or None
-        description = data.get('description', '').strip()
-        force_override = data.get('force_override') == '1'
+            duty_id = _safe_int(data.get('duty_id'))
+            duty = None
+            if duty_id:
+                duty = Duty.objects.filter(pk=duty_id).first()
 
-        staff = get_object_or_404(StaffProfile, pk=staff_id)
+            duty_title = data.get('duty_title', '').strip()
+            if not duty_title:
+                duty_title = duty.name if duty else "General Duty"
 
-        # 1. Location Hierarchy Validation
-        is_valid_loc, loc_err = DutyConflictService.validate_location_hierarchy(
-            building_id=building_id, block=block, floor=floor, room_id=room_id
-        )
-        if not is_valid_loc:
-            messages.error(request, f"Location Error: {loc_err}")
-            return redirect('duty_list')
+            building_id = _safe_int(data.get('building_id'))
+            block = data.get('block_id', '').strip() or None
+            floor = _safe_int(data.get('floor_id'))
+            room_id = _safe_int(data.get('room_id'))
+            specific_location = data.get('specific_location', '').strip()
 
-        # 2. Shift Conflict Detection
-        has_conflict, conf_assign, conf_reason = DutyConflictService.detect_conflict(
-            staff_id=staff.id,
-            start_date=start_date,
-            end_date=end_date,
-            shift_start=datetime.time.fromisoformat(shift_start) if shift_start else None,
-            shift_end=datetime.time.fromisoformat(shift_end) if shift_end else None,
-            working_days=working_days
-        )
-        if has_conflict and not force_override:
-            messages.error(request, f"Shift Conflict Detected: {conf_reason} Check 'Force Override' if authorized.")
-            return redirect('duty_list')
+            today_date = timezone.localtime(timezone.now()).date()
+            start_date = _safe_date(data.get('start_date'), default=today_date)
+            end_date = _safe_date(data.get('end_date'), default=None)
 
-        # 3. Staff Leave Status Check
-        on_leave, leave_msg = DutyConflictService.check_staff_leave_conflict(staff.id, start_date, end_date)
-        if on_leave:
-            messages.warning(request, f"Notice: {leave_msg} Ensure substitute handover if required.")
+            shift_start = _safe_time(data.get('shift_start'), default=(duty.start_time if duty else None))
+            shift_end = _safe_time(data.get('shift_end'), default=(duty.end_time if duty else None))
 
-        duty = None
-        if duty_id:
-            duty = Duty.objects.filter(pk=duty_id).first()
-            if duty and not duty_title:
-                duty_title = duty.name
-            if duty:
-                if not shift_start and duty.start_time:
-                    shift_start = duty.start_time
-                if not shift_end and duty.end_time:
-                    shift_end = duty.end_time
+            working_days_list = data.getlist('working_days')
+            if working_days_list:
+                working_days = ",".join(working_days_list)
+            elif duty and duty.working_days:
+                working_days = duty.working_days
+            else:
+                working_days = 'MON,TUE,WED,THU,FRI,SAT,SUN'
 
-        supervisor = None
-        if supervisor_id:
-            supervisor = User.objects.filter(pk=supervisor_id).first()
+            supervisor_id = _safe_int(data.get('supervisor_id'))
+            supervisor = User.objects.filter(pk=supervisor_id).first() if supervisor_id else None
 
-        # Determine workflow status
-        initial_status = 'ACTIVE'
-        if duty and duty.requires_approval:
-            initial_status = 'PENDING_APPROVAL'
+            description = data.get('description', '').strip()
+            force_override = data.get('force_override') == '1'
 
-        assignment = DutyAssignment.objects.create(
-            duty=duty,
-            staff=staff,
-            duty_title=duty_title or (duty.name if duty else "General Duty"),
-            building_id=building_id,
-            block=block,
-            floor=int(floor) if floor else None,
-            room_id=room_id,
-            specific_location=specific_location,
-            start_date=start_date,
-            end_date=end_date,
-            shift_start=shift_start,
-            shift_end=shift_end,
-            working_days=working_days,
-            status=initial_status,
-            supervisor=supervisor,
-            description=description,
-            is_active=True
-        )
-
-        DutyApprovalLog.objects.create(
-            assignment=assignment,
-            action='CREATED',
-            performed_by=request.user,
-            notes="Duty assignment registered in system.",
-            ip_address=_get_client_ip(request)
-        )
-
-        if initial_status == 'PENDING_APPROVAL':
-            DutyApprovalLog.objects.create(
-                assignment=assignment,
-                action='SUBMITTED',
-                performed_by=request.user,
-                notes="Submitted for supervisor approval signoff.",
-                ip_address=_get_client_ip(request)
+            # 1. Location Hierarchy Validation
+            is_valid_loc, loc_err = DutyConflictService.validate_location_hierarchy(
+                building_id=building_id, block=block, floor=floor, room_id=room_id
             )
-            messages.info(request, f"Duty assignment for '{staff.name}' created and submitted for supervisor approval.")
-        else:
-            messages.success(request, f"Duty assignment for '{staff.name}' activated successfully.")
+            if not is_valid_loc:
+                messages.error(request, f"Location Error: {loc_err}")
+                return redirect('duty_list')
+
+            # 2. Shift Conflict Detection
+            has_conflict, conf_assign, conf_reason = DutyConflictService.detect_conflict(
+                staff_id=staff.id,
+                start_date=start_date,
+                end_date=end_date,
+                shift_start=shift_start,
+                shift_end=shift_end,
+                working_days=working_days
+            )
+            if has_conflict and not force_override:
+                messages.error(request, f"Shift Conflict Detected: {conf_reason} Check 'Force Override' if authorized.")
+                return redirect('duty_list')
+
+            # 3. Staff Leave Status Check
+            on_leave, leave_msg = DutyConflictService.check_staff_leave_conflict(staff.id, start_date, end_date)
+            if on_leave:
+                messages.warning(request, f"Notice: {leave_msg} Ensure substitute handover if required.")
+
+            # Determine workflow status
+            initial_status = 'ACTIVE'
+            if duty and duty.requires_approval:
+                initial_status = 'PENDING_APPROVAL'
+
+            assignment = DutyAssignment.objects.create(
+                duty=duty,
+                staff=staff,
+                duty_title=duty_title,
+                building_id=building_id,
+                block=block,
+                floor=floor,
+                room_id=room_id,
+                specific_location=specific_location,
+                start_date=start_date,
+                end_date=end_date,
+                shift_start=shift_start,
+                shift_end=shift_end,
+                working_days=working_days,
+                status=initial_status,
+                supervisor=supervisor,
+                description=description,
+                is_active=True
+            )
+
+            client_ip = _get_client_ip(request)
+            try:
+                DutyApprovalLog.objects.create(
+                    assignment=assignment,
+                    action='CREATED',
+                    performed_by=request.user,
+                    notes="Duty assignment registered in system.",
+                    ip_address=client_ip
+                )
+            except Exception as log_ex:
+                logger.warning("DutyApprovalLog note: %s", log_ex)
+
+            if initial_status == 'PENDING_APPROVAL':
+                try:
+                    DutyApprovalLog.objects.create(
+                        assignment=assignment,
+                        action='SUBMITTED',
+                        performed_by=request.user,
+                        notes="Submitted for supervisor approval signoff.",
+                        ip_address=client_ip
+                    )
+                except Exception as log_ex:
+                    logger.warning("DutyApprovalLog note: %s", log_ex)
+                messages.info(request, f"Duty assignment for '{staff.name}' created and submitted for supervisor approval.")
+            else:
+                messages.success(request, f"Duty assignment for '{staff.name}' activated successfully.")
+
+        except Exception as e:
+            logger.exception("Error assigning duty: %s", e)
+            messages.error(request, f"Error assigning duty: {e}")
 
     return redirect('duty_list')
 
@@ -1153,68 +1299,79 @@ def duty_edit(request, pk):
     """Updates an existing duty assignment."""
     assignment = get_object_or_404(DutyAssignment, pk=pk)
     if request.method == 'POST':
-        data = request.POST
-        staff_id = data.get('staff_id')
-        duty_id = data.get('duty_id')
-        duty_title = data.get('duty_title', '').strip()
-        building_id = data.get('building_id') or None
-        block = data.get('block_id', '').strip() or None
-        floor = data.get('floor_id') or None
-        room_id = data.get('room_id') or None
-        specific_location = data.get('specific_location', '').strip()
+        try:
+            data = request.POST
+            staff_id = _safe_int(data.get('staff_id'))
+            if staff_id:
+                staff = StaffProfile.objects.filter(pk=staff_id).first()
+                if staff:
+                    assignment.staff = staff
 
-        start_date = data.get('start_date') or assignment.start_date
-        end_date = data.get('end_date') or None
-        shift_start = data.get('shift_start') or None
-        shift_end = data.get('shift_end') or None
-        working_days_list = data.getlist('working_days')
-        working_days = ",".join(working_days_list) if working_days_list else assignment.working_days
+            duty_id = _safe_int(data.get('duty_id'))
+            if duty_id:
+                duty = Duty.objects.filter(pk=duty_id).first()
+                if duty:
+                    assignment.duty = duty
 
-        supervisor_id = data.get('supervisor_id') or None
-        description = data.get('description', '').strip()
+            duty_title = data.get('duty_title', '').strip()
+            if duty_title:
+                assignment.duty_title = duty_title
 
-        staff = get_object_or_404(StaffProfile, pk=staff_id)
+            building_id = _safe_int(data.get('building_id'))
+            block = data.get('block_id', '').strip() or None
+            floor = _safe_int(data.get('floor_id'))
+            room_id = _safe_int(data.get('room_id'))
+            specific_location = data.get('specific_location', '').strip()
 
-        # Hierarchy validation
-        is_valid_loc, loc_err = DutyConflictService.validate_location_hierarchy(
-            building_id=building_id, block=block, floor=floor, room_id=room_id
-        )
-        if not is_valid_loc:
-            messages.error(request, f"Location Error: {loc_err}")
-            return redirect('duty_list')
+            start_date = _safe_date(data.get('start_date'), default=assignment.start_date)
+            end_date = _safe_date(data.get('end_date'), default=None)
+            shift_start = _safe_time(data.get('shift_start'), default=assignment.shift_start)
+            shift_end = _safe_time(data.get('shift_end'), default=assignment.shift_end)
 
-        duty = None
-        if duty_id:
-            duty = Duty.objects.filter(pk=duty_id).first()
-            if duty and not duty_title:
-                duty_title = duty.name
+            working_days_list = data.getlist('working_days')
+            working_days = ",".join(working_days_list) if working_days_list else assignment.working_days
 
-        assignment.duty = duty
-        assignment.staff = staff
-        assignment.duty_title = duty_title
-        assignment.building_id = building_id
-        assignment.block = block
-        assignment.floor = int(floor) if floor else None
-        assignment.room_id = room_id
-        assignment.specific_location = specific_location
-        assignment.start_date = start_date
-        assignment.end_date = end_date
-        assignment.shift_start = shift_start
-        assignment.shift_end = shift_end
-        assignment.working_days = working_days
-        if supervisor_id:
+            supervisor_id = _safe_int(data.get('supervisor_id'))
+            description = data.get('description', '').strip()
+
+            # Hierarchy validation
+            is_valid_loc, loc_err = DutyConflictService.validate_location_hierarchy(
+                building_id=building_id, block=block, floor=floor, room_id=room_id
+            )
+            if not is_valid_loc:
+                messages.error(request, f"Location Error: {loc_err}")
+                return redirect('duty_list')
+
+            assignment.building_id = building_id
+            assignment.block = block
+            assignment.floor = floor
+            assignment.room_id = room_id
+            assignment.specific_location = specific_location
+            assignment.start_date = start_date
+            assignment.end_date = end_date
+            assignment.shift_start = shift_start
+            assignment.shift_end = shift_end
+            assignment.working_days = working_days
             assignment.supervisor_id = supervisor_id
-        assignment.description = description
-        assignment.save()
+            assignment.description = description
+            assignment.save()
 
-        DutyApprovalLog.objects.create(
-            assignment=assignment,
-            action='CREATED',
-            performed_by=request.user,
-            notes="Duty assignment details updated.",
-            ip_address=_get_client_ip(request)
-        )
-        messages.success(request, f"Duty assignment for '{staff.name}' updated successfully.")
+            client_ip = _get_client_ip(request)
+            try:
+                DutyApprovalLog.objects.create(
+                    assignment=assignment,
+                    action='CREATED',
+                    performed_by=request.user,
+                    notes="Duty assignment details updated.",
+                    ip_address=client_ip
+                )
+            except Exception as log_ex:
+                logger.warning("DutyApprovalLog note: %s", log_ex)
+
+            messages.success(request, f"Duty assignment for '{assignment.staff.name}' updated successfully.")
+        except Exception as e:
+            logger.exception("Error updating duty assignment: %s", e)
+            messages.error(request, f"Error updating duty: {e}")
 
     return redirect('duty_list')
 
@@ -1339,7 +1496,7 @@ def duty_create(request):
         requires_approval = data.get('requires_approval') == 'on'
         working_days_list = data.getlist('working_days')
         working_days = ",".join(working_days_list) if working_days_list else 'MON,TUE,WED,THU,FRI,SAT,SUN'
-        ceiling_role_id = data.get('privilege_ceiling_role') or None
+        ceiling_role_id = _safe_int(data.get('privilege_ceiling_role'))
 
         start_date = data.get('start_date') or None
         end_date = data.get('end_date') or None
@@ -1396,7 +1553,7 @@ def duty_edit_definition(request, pk):
         working_days_list = data.getlist('working_days')
         if working_days_list:
             duty.working_days = ",".join(working_days_list)
-        duty.privilege_ceiling_role_id = data.get('privilege_ceiling_role') or None
+        duty.privilege_ceiling_role_id = _safe_int(data.get('privilege_ceiling_role'))
 
         duty.start_date = data.get('start_date') or None
         duty.end_date = data.get('end_date') or None
@@ -1441,7 +1598,7 @@ def duty_delete_definition(request, pk):
 @api_permission_required('duty_management', 'view')
 def get_floors_for_building(request):
     """Returns total floors and comma-separated blocks for the selected building."""
-    building_id = request.GET.get('building_id')
+    building_id = _safe_int(request.GET.get('building_id'))
     if not building_id:
         return JsonResponse({'floors': [], 'blocks': []})
 
@@ -1458,16 +1615,16 @@ def get_floors_for_building(request):
 @api_permission_required('duty_management', 'view')
 def get_rooms_for_building_floor(request):
     """Returns rooms matching building, floor, and optional block."""
-    building_id = request.GET.get('building_id')
-    floor = request.GET.get('floor')
+    building_id = _safe_int(request.GET.get('building_id'))
+    floor = _safe_int(request.GET.get('floor'))
     block = request.GET.get('block', '').strip()
 
     if not building_id:
         return JsonResponse({'rooms': []})
 
     qs = Room.objects.filter(building_id=building_id)
-    if floor and floor.isdigit():
-        qs = qs.filter(floor=int(floor))
+    if floor is not None:
+        qs = qs.filter(floor=floor)
     if block:
         qs = qs.filter(block__iexact=block)
 
@@ -1479,32 +1636,28 @@ def get_rooms_for_building_floor(request):
 @api_permission_required('duty_management', 'view')
 def check_duty_conflict_ajax(request):
     """Real-time conflict detection AJAX endpoint for Assign/Edit modals."""
-    staff_id = request.GET.get('staff_id')
+    staff_id = _safe_int(request.GET.get('staff_id'))
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date') or None
     shift_start_str = request.GET.get('shift_start') or None
     shift_end_str = request.GET.get('shift_end') or None
     working_days = request.GET.get('working_days', 'MON,TUE,WED,THU,FRI,SAT,SUN')
-    exclude_id = request.GET.get('exclude_id')
+    exclude_id = _safe_int(request.GET.get('exclude_id'))
 
     if not staff_id or not start_date:
-        return JsonResponse({'conflict': False, 'reason': ''})
+        return JsonResponse({'conflict': False, 'reason': '', 'on_leave': False, 'leave_reason': ''})
 
-    try:
-        s_time = datetime.time.fromisoformat(shift_start_str) if shift_start_str else None
-        e_time = datetime.time.fromisoformat(shift_end_str) if shift_end_str else None
-    except Exception:
-        s_time = None
-        e_time = None
+    s_time = _safe_time(shift_start_str)
+    e_time = _safe_time(shift_end_str)
 
     has_conflict, _, reason = DutyConflictService.detect_conflict(
-        staff_id=int(staff_id),
+        staff_id=staff_id,
         start_date=start_date,
         end_date=end_date,
         shift_start=s_time,
         shift_end=e_time,
         working_days=working_days,
-        exclude_id=int(exclude_id) if exclude_id and exclude_id.isdigit() else None
+        exclude_id=exclude_id
     )
 
     on_leave, leave_reason = DutyConflictService.check_staff_leave_conflict(staff_id, start_date, end_date)

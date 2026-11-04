@@ -20,6 +20,13 @@ urlpatterns = [
     path("staff/duties/definitions/create/", views.duty_create, name='duty_create'),
     path("staff/duties/definitions/<int:pk>/edit/", views.duty_edit_definition, name='duty_edit_definition'),
     path("staff/duties/definitions/<int:pk>/delete/", views.duty_delete_definition, name='duty_delete_definition'),
+    path("staff/duties/<int:pk>/approve/", views.duty_approve, name='duty_approve'),
+    path("staff/duties/<int:pk>/reject/", views.duty_reject, name='duty_reject'),
+    path("staff/duties/<int:pk>/handover/", views.duty_handover, name='duty_handover'),
+    path("staff/duties/<int:pk>/revoke/", views.duty_revoke, name='duty_revoke'),
+    path("staff/duties/ajax/get-floors/", views.get_floors_for_building, name='duty_get_floors'),
+    path("staff/duties/ajax/get-rooms/", views.get_rooms_for_building_floor, name='duty_get_rooms'),
+    path("staff/duties/ajax/check-conflict/", views.check_duty_conflict_ajax, name='duty_check_conflict'),
     
     # Complaint Management
     path("complaints/", views.complaint_list, name='complaint_list'),

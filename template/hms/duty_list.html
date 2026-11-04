@@ -2,10 +2,10 @@
 {% load static %}
 {% load rbac_tags %}
 
-{% block title %} | Staff Duties & Scheduling{% endblock %}
+{% block title %} | Enterprise Duty Access & Scheduling{% endblock %}
 
 {% block content %}
-<!-- Font and Calendar CDNs -->
+<!-- Font and FullCalendar CDNs -->
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
@@ -17,20 +17,26 @@
         font-family: 'Outfit', sans-serif;
     }
     .glass-card {
-        background: var(--card-bg, rgba(255, 255, 255, 0.9));
+        background: var(--card-bg, rgba(255, 255, 255, 0.95));
         border: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
         border-radius: 1.25rem;
         box-shadow: 0 4px 18px rgba(0, 0, 0, 0.02);
         transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .glass-card:hover {
-        transform: translateY(-2px);
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
     }
-    .badge-prio-low { background-color: rgba(16, 185, 129, 0.1); color: #10b981; }
-    .badge-prio-medium { background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-    .badge-prio-high { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
-    
+    .stat-card {
+        border-radius: 1.25rem;
+        padding: 1.25rem 1.5rem;
+        background: white;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02);
+    }
+    .badge-prio-low { background-color: rgba(16, 185, 129, 0.12); color: #059669; }
+    .badge-prio-medium { background-color: rgba(245, 158, 11, 0.12); color: #d97706; }
+    .badge-prio-high { background-color: rgba(239, 68, 68, 0.12); color: #dc2626; }
+
     .nav-pills .nav-link {
         color: var(--text-muted, #64748b);
         font-weight: 500;
@@ -42,29 +48,63 @@
         background-color: var(--primary-color, #4f46e5);
         color: white;
     }
-    .fc-theme-standard td, .fc-theme-standard th {
-        border-color: var(--border-color, #e2e8f0) !important;
+    .pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #10b981;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse-green 1.8s infinite cubic-bezier(0.66, 0, 0, 1);
     }
-    .fc-header-toolbar {
-        margin-bottom: 1.5rem !important;
+    @keyframes pulse-green {
+        to {
+            box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+        }
+    }
+    .day-pill {
+        display: inline-block;
+        width: 22px;
+        height: 22px;
+        line-height: 22px;
+        text-align: center;
+        border-radius: 50%;
+        font-size: 0.65rem;
+        font-weight: 600;
+        margin-right: 2px;
+    }
+    .day-pill.active {
+        background-color: #4f46e5;
+        color: white;
+    }
+    .day-pill.inactive {
+        background-color: #f1f5f9;
+        color: #94a3b8;
+    }
+    .scope-pill {
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 0.2rem 0.55rem;
+        border-radius: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .scope-pill-OWN { background-color: #e0f2fe; color: #0284c7; }
+    .scope-pill-LOCATION { background-color: #fef3c7; color: #b45309; }
+    .scope-pill-BUILDING { background-color: #ede9fe; color: #6d28d9; }
+    .scope-pill-ORGANIZATION { background-color: #dcfce7; color: #15803d; }
+
+    .matrix-checkbox {
+        width: 1.15rem;
+        height: 1.15rem;
+        cursor: pointer;
+    }
+    .fc-theme-standard td, .fc-theme-standard th {
+        border-color: #e2e8f0 !important;
     }
     .fc .fc-button-primary {
         background-color: #4f46e5 !important;
         border-color: #4f46e5 !important;
-    }
-    .fc .fc-button-primary:hover {
-        background-color: #4338ca !important;
-        border-color: #4338ca !important;
-    }
-    /* Skeleton Shimmer Load Effect */
-    @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-    }
-    .shimmer-load {
-        background: linear-gradient(90deg, var(--border-color, #f1f5f9) 25%, #e2e8f0 37%, var(--border-color, #f1f5f9) 63%);
-        background-size: 200% 100%;
-        animation: shimmer 1.4s infinite;
     }
 </style>
 
@@ -73,8 +113,8 @@
     {# ── Page Header ── #}
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
         <div>
-            <h2 class="fw-bold mb-0 text-slate-800"><i class="bi bi-shield-check text-primary me-2"></i>Duty Access & Scheduling</h2>
-            <p class="text-muted small mb-0 mt-1">Define customized duties with role-based application permissions and assign them to staff.</p>
+            <h2 class="fw-bold mb-0 text-slate-800"><i class="bi bi-shield-check text-primary me-2"></i>Staff Duties & Workforce Access Control</h2>
+            <p class="text-muted small mb-0 mt-1">Enterprise workforce scheduling with dynamic role integration, location isolation, and 10-action RBDAC scoping.</p>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-outline-primary rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#createDutyTemplateModal">
@@ -83,6 +123,56 @@
             <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#assignDutyModal">
                 <i class="bi bi-plus-circle-fill me-1"></i>Assign Duty
             </button>
+        </div>
+    </div>
+
+    {# ── Real-Time Workload & Monitoring Metric Cards ── #}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-card d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="text-muted small fw-medium">Total Assignments</div>
+                    <div class="fs-3 fw-bold text-dark mt-1">{{ stats.total }}</div>
+                </div>
+                <div class="rounded-circle bg-primary bg-opacity-10 text-primary p-3 fs-4">
+                    <i class="bi bi-clipboard-check"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="text-muted small fw-medium d-flex align-items-center gap-1">
+                        <span class="pulse-dot"></span> On-Duty Right Now
+                    </div>
+                    <div class="fs-3 fw-bold text-success mt-1">{{ stats.on_duty_now }}</div>
+                </div>
+                <div class="rounded-circle bg-success bg-opacity-10 text-success p-3 fs-4">
+                    <i class="bi bi-person-badge"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="text-muted small fw-medium">Pending Approvals</div>
+                    <div class="fs-3 fw-bold text-warning mt-1">{{ stats.pending_approvals }}</div>
+                </div>
+                <div class="rounded-circle bg-warning bg-opacity-10 text-warning p-3 fs-4">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="text-muted small fw-medium">Expiring Soon (<48h)</div>
+                    <div class="fs-3 fw-bold text-info mt-1">{{ stats.expiring_soon }}</div>
+                </div>
+                <div class="rounded-circle bg-info bg-opacity-10 text-info p-3 fs-4">
+                    <i class="bi bi-alarm"></i>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -95,7 +185,7 @@
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="calendar-tab" data-bs-toggle="tab" data-bs-target="#calendar-content" type="button" role="tab">
-                <i class="bi bi-calendar3 me-1"></i>Calendar scheduler
+                <i class="bi bi-calendar3 me-1"></i>Calendar Scheduler
             </button>
         </li>
         <li class="nav-item" role="presentation">
@@ -107,18 +197,61 @@
 
     <div class="tab-content" id="dutyTabsContent">
         
-        {# ── TAB 1: ACTIVE ASSIGNMENTS ── #}
+        {# ── TAB 1: ACTIVE ASSIGNMENTS & MONITORING ── #}
         <div class="tab-pane fade show active" id="roster-content" role="tabpanel">
+
+            {# Filter Bar #}
+            <div class="glass-card p-3 mb-4">
+                <form method="get" class="row g-2 align-items-center">
+                    <div class="col-12 col-md-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light border-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" name="q" value="{{ search }}" class="form-control bg-light border-0" placeholder="Search staff, duty, post...">
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select name="building" class="form-select form-select-sm bg-light border-0">
+                            <option value="">All Buildings</option>
+                            {% for b in buildings %}
+                            <option value="{{ b.id }}" {% if building_filter == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select name="status" class="form-select form-select-sm bg-light border-0">
+                            <option value="">All Statuses</option>
+                            <option value="LIVE_ON_SHIFT" {% if status_filter == 'LIVE_ON_SHIFT' %}selected{% endif %}>🟢 Live On-Duty Right Now</option>
+                            {% for st_val, st_lbl in assignment_statuses %}
+                            <option value="{{ st_val }}" {% if status_filter == st_val %}selected{% endif %}>{{ st_lbl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <select name="priority" class="form-select form-select-sm bg-light border-0">
+                            <option value="">All Priorities</option>
+                            <option value="high" {% if priority_filter == 'high' %}selected{% endif %}>High / Critical</option>
+                            <option value="medium" {% if priority_filter == 'medium' %}selected{% endif %}>Medium</option>
+                            <option value="low" {% if priority_filter == 'low' %}selected{% endif %}>Low</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 d-flex gap-2 justify-content-end">
+                        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">Filter</button>
+                        {% if search or building_filter or status_filter or priority_filter %}
+                        <a href="{% url 'duty_list' %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">Clear</a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+
             <div class="glass-card overflow-hidden">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="bg-light">
                             <tr>
                                 <th class="ps-4 py-3">Staff Profile</th>
-                                <th class="py-3">Role / Designation</th>
                                 <th class="py-3">Assigned Duty Template</th>
-                                <th class="py-3">Assigned Location</th>
-                                <th class="py-3">Shift Plan</th>
+                                <th class="py-3">Assigned Location & Scope</th>
+                                <th class="py-3">Shift Plan & Working Days</th>
                                 <th class="py-3">Active Status</th>
                                 <th class="pe-4 py-3 text-end">Actions</th>
                             </tr>
@@ -128,97 +261,206 @@
                             <tr>
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center gap-2">
-                                        {% if d.staff.user.profile.photo %}
-                                        <img src="{{ d.staff.user.profile.photo.url }}" class="rounded-circle object-fit-cover shadow-sm" width="36" height="36">
+                                        {% if d.staff.user.profile.photo_url %}
+                                        <img src="{{ d.staff.user.profile.photo_url }}" class="rounded-circle object-fit-cover shadow-sm" width="38" height="38">
                                         {% else %}
-                                        <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold" style="width:36px;height:36px;font-size:.85rem;">
+                                        <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold" style="width:38px;height:38px;font-size:.85rem;">
                                             {{ d.staff.name|first|upper }}
                                         </div>
                                         {% endif %}
                                         <div>
                                             <div class="fw-semibold small text-dark">{{ d.staff.name }}</div>
-                                            <div class="text-muted small" style="font-size:.72rem;">{{ d.staff.email }}</div>
+                                            <div class="d-flex align-items-center gap-1 mt-0.5">
+                                                <span class="badge rounded-pill bg-light text-secondary border px-2 py-0.5" style="font-size:.65rem;">
+                                                    <i class="bi bi-shield-person me-1"></i>{{ d.staff.get_designation_display }}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="badge rounded-pill bg-light text-secondary border px-2 py-1 small" style="font-size:.70rem;">
-                                        {{ d.staff.get_designation_display }}
-                                    </span>
-                                </td>
-                                <td>
                                     <div class="fw-semibold small text-primary">{{ d.duty_title }}</div>
-                                    {% if d.duty %}
-                                    <span class="badge badge-prio-{{ d.duty.priority }} rounded-pill px-2 py-0.5" style="font-size:.65rem;">
-                                        {{ d.duty.get_priority_display }}
-                                    </span>
-                                    {% endif %}
+                                    <div class="d-flex align-items-center gap-1 mt-1">
+                                        {% if d.duty %}
+                                        <span class="badge badge-prio-{{ d.duty.priority }} rounded-pill px-2 py-0.5" style="font-size:.65rem;">
+                                            {{ d.duty.get_priority_display }}
+                                        </span>
+                                        <span class="badge bg-light text-muted border rounded-pill px-2 py-0.5" style="font-size:.65rem;">
+                                            {{ d.duty.category }}
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-light text-muted border rounded-pill px-2 py-0.5" style="font-size:.65rem;">Custom Shift</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td>
-                                    <span class="small text-secondary">
+                                    <div class="small fw-medium text-dark">
                                         {% if d.building %}
-                                            <i class="bi bi-building me-1"></i>{{ d.building.name }}
-                                            {% if d.block %} · {{ d.block.name }}{% endif %}
-                                            {% if d.floor %} · F{{ d.floor.floor_number }}{% endif %}
-                                        {% elif d.block %}
-                                            <i class="bi bi-grid-1x2 me-1"></i>{{ d.block.name }}
+                                            <i class="bi bi-building me-1 text-primary"></i>{{ d.building.name }}
+                                            {% if d.block %} <span class="text-muted">· Block {{ d.block }}</span>{% endif %}
+                                            {% if d.floor is not None %} <span class="text-muted">· Floor {{ d.floor }}</span>{% endif %}
+                                            {% if d.room %} <span class="text-muted">· Room {{ d.room.room_number }}</span>{% endif %}
+                                        {% else %}
+                                            <i class="bi bi-geo-alt me-1 text-muted"></i>Campus Wide
                                         {% endif %}
+                                    </div>
+                                    <div class="d-flex align-items-center gap-1 mt-1">
                                         {% if d.specific_location %}
-                                            {% if d.building or d.block %} ({% endif %}{{ d.specific_location }}{% if d.building or d.block %}){% endif %}
+                                        <span class="badge bg-light text-secondary border rounded-pill px-2 py-0.5 small" style="font-size:.65rem;">
+                                            <i class="bi bi-pin-map me-1"></i>{{ d.specific_location }}
+                                        </span>
                                         {% endif %}
-                                        {% if not d.building and not d.block and not d.specific_location %}
-                                            —
+                                        {% if d.duty %}
+                                        <span class="scope-pill scope-pill-{{ d.duty.data_scope }}">
+                                            Scope: {{ d.duty.get_data_scope_display }}
+                                        </span>
                                         {% endif %}
-                                    </span>
-                                </td>
-                                <td class="small text-muted">
-                                    {% if d.shift_start and d.shift_end %}
-                                        <i class="bi bi-clock me-1 text-primary"></i>{{ d.shift_start|time:"g:i A" }} - {{ d.shift_end|time:"g:i A" }}
-                                    {% else %}
-                                        <i class="bi bi-clock-history me-1"></i>Default ({{ d.staff.get_shift_display }})
-                                    {% endif %}
+                                    </div>
                                 </td>
                                 <td>
-                                    {% if d.is_active %}
-                                    <span class="badge rounded-pill bg-success-subtle text-success px-2 py-1" style="font-size:.70rem;">
-                                        <i class="bi bi-circle-fill me-1" style="font-size:.30rem;"></i>Active Duty
+                                    <div class="small text-dark fw-medium">
+                                        {% if d.shift_start and d.shift_end %}
+                                            <i class="bi bi-clock me-1 text-primary"></i>{{ d.shift_start|time:"g:i A" }} - {{ d.shift_end|time:"g:i A" }}
+                                        {% else %}
+                                            <i class="bi bi-clock-history me-1 text-muted"></i>Default ({{ d.staff.get_shift_display }})
+                                        {% endif %}
+                                    </div>
+                                    {# Working Days Indicators #}
+                                    <div class="mt-1 d-flex align-items-center">
+                                        {% with days=d.working_days_list %}
+                                        <span class="day-pill {% if 'MON' in days %}active{% else %}inactive{% endif %}">M</span>
+                                        <span class="day-pill {% if 'TUE' in days %}active{% else %}inactive{% endif %}">T</span>
+                                        <span class="day-pill {% if 'WED' in days %}active{% else %}inactive{% endif %}">W</span>
+                                        <span class="day-pill {% if 'THU' in days %}active{% else %}inactive{% endif %}">T</span>
+                                        <span class="day-pill {% if 'FRI' in days %}active{% else %}inactive{% endif %}">F</span>
+                                        <span class="day-pill {% if 'SAT' in days %}active{% else %}inactive{% endif %}">S</span>
+                                        <span class="day-pill {% if 'SUN' in days %}active{% else %}inactive{% endif %}">S</span>
+                                        {% endwith %}
+                                    </div>
+                                    <div class="text-muted small mt-0.5" style="font-size:.70rem;">
+                                        {{ d.start_date|date:"d M Y" }} {% if d.end_date %}to {{ d.end_date|date:"d M Y" }}{% else %}onwards{% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if d.is_currently_on_shift %}
+                                    <span class="badge rounded-pill bg-success-subtle text-success px-2.5 py-1 fw-bold" style="font-size:.72rem;">
+                                        <span class="pulse-dot me-1"></span> LIVE ON DUTY
+                                    </span>
+                                    {% elif d.status == 'PENDING_APPROVAL' %}
+                                    <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis px-2.5 py-1" style="font-size:.70rem;">
+                                        <i class="bi bi-hourglass-split me-1"></i>Pending Signoff
+                                    </span>
+                                    {% elif d.status == 'APPROVED' %}
+                                    <span class="badge rounded-pill bg-info-subtle text-info-emphasis px-2.5 py-1" style="font-size:.70rem;">
+                                        <i class="bi bi-check2-circle me-1"></i>Approved Shift
+                                    </span>
+                                    {% elif d.status == 'REVOKED' %}
+                                    <span class="badge rounded-pill bg-danger-subtle text-danger px-2.5 py-1" style="font-size:.70rem;">
+                                        <i class="bi bi-shield-x me-1"></i>Revoked
+                                    </span>
+                                    {% elif d.status == 'REJECTED' %}
+                                    <span class="badge rounded-pill bg-secondary-subtle text-secondary px-2.5 py-1" style="font-size:.70rem;">
+                                        <i class="bi bi-x-circle me-1"></i>Rejected
+                                    </span>
+                                    {% elif not d.is_active %}
+                                    <span class="badge rounded-pill bg-light text-muted px-2 py-1" style="font-size:.70rem;">
+                                        Inactive / Expired
                                     </span>
                                     {% else %}
-                                    <span class="badge rounded-pill bg-light text-muted px-2 py-1" style="font-size:.70rem;">
-                                        Idle
+                                    <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size:.70rem;">
+                                        Scheduled Shift
                                     </span>
+                                    {% endif %}
+                                    {% if d.supervisor %}
+                                    <div class="text-muted mt-0.5" style="font-size:.68rem;">Supv: {{ d.supervisor.get_full_name|default:d.supervisor.username }}</div>
                                     {% endif %}
                                 </td>
                                 <td class="pe-4 text-end">
-                                    <div class="d-flex gap-2 justify-content-end">
-                                        <button class="btn btn-sm btn-outline-primary rounded-pill px-2 py-1 edit-duty-btn" 
-                                                data-id="{{ d.id }}"
-                                                data-staff="{{ d.staff.id }}"
-                                                data-duty="{{ d.duty.id|default:'' }}"
-                                                data-title="{{ d.duty_title }}"
-                                                data-building="{{ d.building.id|default:'' }}"
-                                                data-block="{{ d.block.id|default:'' }}"
-                                                data-floor="{{ d.floor.id|default:'' }}"
-                                                data-location="{{ d.specific_location }}"
-                                                data-start="{% if d.shift_start %}{{ d.shift_start|time:'H:i' }}{% endif %}"
-                                                data-end="{% if d.shift_end %}{{ d.shift_end|time:'H:i' }}{% endif %}"
-                                                data-desc="{{ d.description }}">
-                                            <i class="bi bi-pencil-fill"></i>
+                                    <div class="dropdown d-inline-block">
+                                        <button class="btn btn-light btn-sm rounded-circle shadow-sm" data-bs-toggle="dropdown">
+                                            <i class="bi bi-three-dots-vertical"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 delete-duty-btn" 
-                                                data-id="{{ d.id }}"
-                                                data-name="{{ d.staff.name }}"
-                                                data-title="{{ d.duty_title }}">
-                                            <i class="bi bi-trash-fill"></i>
-                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end rounded-3 shadow border-0 py-2">
+                                            {# Edit Assignment #}
+                                            <li>
+                                                <button class="dropdown-item edit-duty-btn py-1.5"
+                                                        data-id="{{ d.id }}"
+                                                        data-staff="{{ d.staff.id }}"
+                                                        data-duty="{{ d.duty.id|default:'' }}"
+                                                        data-title="{{ d.duty_title }}"
+                                                        data-building="{{ d.building.id|default:'' }}"
+                                                        data-block="{{ d.block|default:'' }}"
+                                                        data-floor="{{ d.floor|default:'' }}"
+                                                        data-room="{{ d.room.id|default:'' }}"
+                                                        data-location="{{ d.specific_location }}"
+                                                        data-start-date="{{ d.start_date|date:'Y-m-d'|default:'' }}"
+                                                        data-end-date="{{ d.end_date|date:'Y-m-d'|default:'' }}"
+                                                        data-start="{% if d.shift_start %}{{ d.shift_start|time:'H:i' }}{% endif %}"
+                                                        data-end="{% if d.shift_end %}{{ d.shift_end|time:'H:i' }}{% endif %}"
+                                                        data-working-days="{{ d.working_days }}"
+                                                        data-supervisor="{{ d.supervisor.id|default:'' }}"
+                                                        data-desc="{{ d.description }}">
+                                                    <i class="bi bi-pencil me-2 text-primary"></i>Edit Assignment
+                                                </button>
+                                            </li>
+                                            {# Emergency Handover #}
+                                            <li>
+                                                <button class="dropdown-item handover-btn py-1.5 text-warning-emphasis"
+                                                        data-id="{{ d.id }}"
+                                                        data-staff-name="{{ d.staff.name }}"
+                                                        data-title="{{ d.duty_title }}">
+                                                    <i class="bi bi-arrow-left-right me-2 text-warning"></i>Emergency Handover
+                                                </button>
+                                            </li>
+                                            {# Approve / Reject (If pending) #}
+                                            {% if d.status == 'PENDING_APPROVAL' %}
+                                            <li>
+                                                <button class="dropdown-item approve-btn py-1.5 text-success"
+                                                        data-id="{{ d.id }}"
+                                                        data-title="{{ d.duty_title }}"
+                                                        data-staff-name="{{ d.staff.name }}">
+                                                    <i class="bi bi-check-circle me-2 text-success"></i>Approve Shift
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item reject-btn py-1.5 text-danger"
+                                                        data-id="{{ d.id }}"
+                                                        data-title="{{ d.duty_title }}"
+                                                        data-staff-name="{{ d.staff.name }}">
+                                                    <i class="bi bi-x-circle me-2 text-danger"></i>Reject Shift
+                                                </button>
+                                            </li>
+                                            {% endif %}
+                                            {# Immediate Revocation Killswitch #}
+                                            {% if d.is_active and d.status != 'REVOKED' %}
+                                            <li>
+                                                <button class="dropdown-item revoke-btn py-1.5 text-danger"
+                                                        data-id="{{ d.id }}"
+                                                        data-title="{{ d.duty_title }}"
+                                                        data-staff-name="{{ d.staff.name }}">
+                                                    <i class="bi bi-shield-slash me-2 text-danger"></i>Revoke Access (Killswitch)
+                                                </button>
+                                            </li>
+                                            {% endif %}
+                                            <li><hr class="dropdown-divider my-1"></li>
+                                            {# Delete #}
+                                            <li>
+                                                <button class="dropdown-item delete-duty-btn py-1.5 text-danger"
+                                                        data-id="{{ d.id }}"
+                                                        data-name="{{ d.staff.name }}"
+                                                        data-title="{{ d.duty_title }}">
+                                                    <i class="bi bi-trash me-2"></i>Delete Record
+                                                </button>
+                                            </li>
+                                        </ul>
                                     </div>
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
+                                <td colspan="6" class="text-center py-5 text-muted">
                                     <i class="bi bi-clipboard2-check display-4 opacity-25 d-block mb-3"></i>
-                                    No duties assigned right now. Click "Assign Duty" to delegate active tasks.
+                                    No duty assignments found matching current filters. Click "Assign Duty" to delegate active tasks.
                                 </td>
                             </tr>
                             {% endfor %}
@@ -231,6 +473,14 @@
         {# ── TAB 2: CALENDAR SCHEDULER ── #}
         <div class="tab-pane fade" id="calendar-content" role="tabpanel">
             <div class="glass-card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-calendar-range text-primary me-2"></i>Shift Schedule Master Calendar</h5>
+                    <div class="d-flex align-items-center gap-2 small">
+                        <span class="badge badge-prio-high rounded-pill px-2 py-1">High Priority</span>
+                        <span class="badge badge-prio-medium rounded-pill px-2 py-1">Medium Priority</span>
+                        <span class="badge badge-prio-low rounded-pill px-2 py-1">Low Priority</span>
+                    </div>
+                </div>
                 <div id="dutyCalendar"></div>
             </div>
         </div>
@@ -240,7 +490,7 @@
             <div class="row g-4">
                 {% for duty in duties %}
                 <div class="col-md-6 col-lg-4">
-                    <div class="glass-card p-4 d-flex flex-column justify-content-between h-100">
+                    <div class="glass-card p-4 d-flex flex-column justify-content-between h-100 position-relative">
                         <div>
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <div>
@@ -250,16 +500,23 @@
                                     <span class="badge bg-light text-dark rounded-pill border ms-1 px-2.5 py-1" style="font-size:.65rem;">
                                         {{ duty.category }}
                                     </span>
+                                    <span class="scope-pill scope-pill-{{ duty.data_scope }} ms-1">
+                                        {{ duty.get_data_scope_display }}
+                                    </span>
                                 </div>
                                 <div class="dropdown">
                                     <button class="btn btn-light btn-sm rounded-circle" data-bs-toggle="dropdown"><i class="bi bi-three-dots-vertical"></i></button>
-                                    <ul class="dropdown-menu dropdown-menu-end rounded-3 shadow">
+                                    <ul class="dropdown-menu dropdown-menu-end rounded-3 shadow border-0">
                                         <li>
                                             <button class="dropdown-item edit-def-btn" 
                                                     data-id="{{ duty.id }}"
                                                     data-name="{{ duty.name }}"
                                                     data-category="{{ duty.category }}"
                                                     data-priority="{{ duty.priority }}"
+                                                    data-scope="{{ duty.data_scope }}"
+                                                    data-approval="{% if duty.requires_approval %}on{% endif %}"
+                                                    data-working-days="{{ duty.working_days }}"
+                                                    data-ceiling="{{ duty.privilege_ceiling_role.id|default:'' }}"
                                                     data-desc="{{ duty.description }}"
                                                     data-start-date="{{ duty.start_date|date:'Y-m-d'|default:'' }}"
                                                     data-end-date="{{ duty.end_date|date:'Y-m-d'|default:'' }}"
@@ -272,6 +529,13 @@
                                                     data-perm-{{ p.module_name }}-add="{% if p.can_add %}on{% endif %}"
                                                     data-perm-{{ p.module_name }}-edit="{% if p.can_edit %}on{% endif %}"
                                                     data-perm-{{ p.module_name }}-delete="{% if p.can_delete %}on{% endif %}"
+                                                    data-perm-{{ p.module_name }}-approve="{% if p.can_approve %}on{% endif %}"
+                                                    data-perm-{{ p.module_name }}-reject="{% if p.can_reject %}on{% endif %}"
+                                                    data-perm-{{ p.module_name }}-verify="{% if p.can_verify %}on{% endif %}"
+                                                    data-perm-{{ p.module_name }}-export="{% if p.can_export %}on{% endif %}"
+                                                    data-perm-{{ p.module_name }}-print="{% if p.can_print %}on{% endif %}"
+                                                    data-perm-{{ p.module_name }}-download="{% if p.can_download %}on{% endif %}"
+                                                    data-perm-{{ p.module_name }}-assign="{% if p.can_assign %}on{% endif %}"
                                                     {% endfor %}>
                                                 <i class="bi bi-pencil-square me-2 text-primary"></i>Edit Template
                                             </button>
@@ -286,30 +550,55 @@
                                     </ul>
                                 </div>
                             </div>
-                            <h4 class="fw-bold mb-2 text-slate-800">{{ duty.name }}</h4>
-                            <p class="text-muted small mb-4 text-truncate-2">{{ duty.description|default:"No description template provided." }}</p>
+                            <h4 class="fw-bold mb-1 text-slate-800">{{ duty.name }}</h4>
+                            <p class="text-muted small mb-3 text-truncate-2">{{ duty.description|default:"No description provided for this template." }}</p>
                             
-                            <h6 class="fw-semibold text-uppercase small text-dark mb-3 border-bottom pb-2" style="letter-spacing: .05em; font-size:.70rem;">
-                                Allowed Modules & Permissions (RBDAC)
+                            {% if duty.requires_approval %}
+                            <div class="mb-2">
+                                <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis px-2 py-0.5 small" style="font-size:.65rem;">
+                                    <i class="bi bi-shield-lock me-1"></i>Requires Supervisor Approval Signoff
+                                </span>
+                            </div>
+                            {% endif %}
+
+                            {% if duty.privilege_ceiling_role %}
+                            <div class="mb-3">
+                                <span class="badge rounded-pill bg-danger-subtle text-danger px-2 py-0.5 small" style="font-size:.65rem;">
+                                    <i class="bi bi-slash-circle me-1"></i>Ceiling Role: {{ duty.privilege_ceiling_role.name }}
+                                </span>
+                            </div>
+                            {% endif %}
+
+                            <h6 class="fw-semibold text-uppercase small text-dark mb-2 border-bottom pb-1" style="letter-spacing: .05em; font-size:.68rem;">
+                                10-Action Allowed Capabilities (RBDAC)
                             </h6>
-                            <div class="d-flex flex-column gap-2 mb-4">
+                            <div class="d-flex flex-column gap-1.5 mb-3" style="max-height: 220px; overflow-y: auto;">
                                 {% for p in duty.permissions.all %}
-                                <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded-3">
-                                    <span class="small text-slate-700 text-capitalize fw-medium"><i class="bi bi-shield text-indigo me-2"></i>{{ p.module_name }}</span>
-                                    <div class="d-flex gap-1">
-                                        {% if p.can_view %}<span class="badge bg-indigo bg-opacity-10 text-indigo py-0.5 px-2 text-uppercase" style="font-size:.60rem;">View</span>{% endif %}
-                                        {% if p.can_add %}<span class="badge bg-success bg-opacity-10 text-success py-0.5 px-2 text-uppercase" style="font-size:.60rem;">Add</span>{% endif %}
-                                        {% if p.can_edit %}<span class="badge bg-warning bg-opacity-10 text-warning-emphasis py-0.5 px-2 text-uppercase" style="font-size:.60rem;">Edit</span>{% endif %}
-                                        {% if p.can_delete %}<span class="badge bg-danger bg-opacity-10 text-danger py-0.5 px-2 text-uppercase" style="font-size:.60rem;">Del</span>{% endif %}
+                                <div class="bg-light p-2 rounded-3 border">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="small text-slate-800 text-capitalize fw-bold"><i class="bi bi-shield-check text-indigo me-1"></i>{{ p.module_name }}</span>
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% if p.can_view %}<span class="badge bg-indigo bg-opacity-10 text-indigo py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">View</span>{% endif %}
+                                        {% if p.can_add %}<span class="badge bg-success bg-opacity-10 text-success py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Add</span>{% endif %}
+                                        {% if p.can_edit %}<span class="badge bg-warning bg-opacity-10 text-warning-emphasis py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Edit</span>{% endif %}
+                                        {% if p.can_delete %}<span class="badge bg-danger bg-opacity-10 text-danger py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Del</span>{% endif %}
+                                        {% if p.can_approve %}<span class="badge bg-primary bg-opacity-10 text-primary py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Appr</span>{% endif %}
+                                        {% if p.can_reject %}<span class="badge bg-danger bg-opacity-10 text-danger py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Rej</span>{% endif %}
+                                        {% if p.can_verify %}<span class="badge bg-info bg-opacity-10 text-info py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Verify</span>{% endif %}
+                                        {% if p.can_export %}<span class="badge bg-secondary bg-opacity-10 text-secondary py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Export</span>{% endif %}
+                                        {% if p.can_print %}<span class="badge bg-secondary bg-opacity-10 text-secondary py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Print</span>{% endif %}
+                                        {% if p.can_download %}<span class="badge bg-secondary bg-opacity-10 text-secondary py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Download</span>{% endif %}
+                                        {% if p.can_assign %}<span class="badge bg-primary bg-opacity-10 text-primary py-0.5 px-1.5 text-uppercase" style="font-size:.58rem;">Assign</span>{% endif %}
                                     </div>
                                 </div>
                                 {% empty %}
-                                <span class="text-muted italic x-small"><i class="bi bi-info-circle me-1"></i>No access permissions mapped. User under this duty will have zero data access.</span>
+                                <span class="text-muted italic small"><i class="bi bi-info-circle me-1"></i>Zero permissions assigned (Default-Deny).</span>
                                 {% endfor %}
                             </div>
                         </div>
                         
-                        <div class="border-top pt-3 text-muted small d-flex justify-content-between align-items-center">
+                        <div class="border-top pt-2.5 text-muted small d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-clock me-1 text-primary"></i>Shift: <strong>{{ duty.start_time|time:"H:i"|default:"--" }} - {{ duty.end_time|time:"H:i"|default:"--" }}</strong></span>
                             <span class="text-capitalize"><i class="bi bi-repeat me-1 text-primary"></i>{{ duty.repeat_type }}</span>
                         </div>
@@ -328,31 +617,44 @@
 
 {# ── MODAL 1: ASSIGN DUTY ── #}
 <div class="modal fade" id="assignDutyModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow rounded-4">
             <form method="post" action="{% url 'duty_assign' %}" id="assignDutyForm">
                 {% csrf_token %}
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold text-slate-800"><i class="bi bi-person-plus text-primary me-2"></i>Assign Duty</h5>
+                    <h5 class="modal-title fw-bold text-slate-800"><i class="bi bi-person-plus text-primary me-2"></i>Assign Staff Duty</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body py-3">
+                    {# Dynamic Shift Conflict Alert Container #}
+                    <div id="assign_conflict_alert" class="alert alert-warning d-none align-items-center gap-2 rounded-3 py-2 px-3 small" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                        <div id="assign_conflict_msg"></div>
+                    </div>
+
                     <div class="row g-3">
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label small text-secondary fw-semibold">Staff Member *</label>
-                            <select name="staff_id" class="form-select bg-light border-0" required>
+                            <select name="staff_id" id="assign_staff_id" class="form-select bg-light border-0" required>
                                 <option value="" disabled selected>Select Staff...</option>
                                 {% for s in staff_members %}
-                                <option value="{{ s.id }}">{{ s.name }} ({{ s.get_designation_display }})</option>
+                                <option value="{{ s.id }}">{{ s.name }} (Role: {{ s.get_designation_display }})</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label small text-secondary fw-semibold">Duty Template *</label>
                             <select name="duty_id" id="assign_duty_id" class="form-select bg-light border-0" required>
                                 <option value="" disabled selected>Select Duty Template...</option>
                                 {% for u in duties %}
-                                <option value="{{ u.id }}" data-name="{{ u.name }}" data-start="{{ u.start_time|time:'H:i' }}" data-end="{{ u.end_time|time:'H:i' }}">{{ u.name }} ({{ u.category }})</option>
+                                <option value="{{ u.id }}" 
+                                        data-name="{{ u.name }}" 
+                                        data-start="{{ u.start_time|time:'H:i'|default:'' }}" 
+                                        data-end="{{ u.end_time|time:'H:i'|default:'' }}"
+                                        data-scope="{{ u.data_scope }}"
+                                        data-days="{{ u.working_days }}">
+                                    {{ u.name }} ({{ u.category }} - {{ u.get_data_scope_display }})
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -360,45 +662,100 @@
                             <label class="form-label small text-secondary fw-semibold">Custom Title Override (Optional)</label>
                             <input type="text" name="duty_title" id="assign_duty_title" class="form-control bg-light border-0" placeholder="Defaults to selected template name">
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Building (Optional)</label>
-                            <select name="building_id" class="form-select bg-light border-0 building-selector">
-                                <option value="">Select Building...</option>
-                                {% for b in buildings %}
-                                <option value="{{ b.id }}">{{ b.name }}</option>
+
+                        {# Hierarchical Location Selectors #}
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded-3">
+                                <h6 class="fw-bold small text-dark mb-2"><i class="bi bi-geo-alt-fill text-primary me-1"></i>Location Hierarchy & Scoping</h6>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <label class="form-label x-small text-muted fw-semibold">Building</label>
+                                        <select name="building_id" id="assign_building_id" class="form-select form-select-sm border-0 building-selector">
+                                            <option value="">Select Building...</option>
+                                            {% for b in buildings %}
+                                            <option value="{{ b.id }}">{{ b.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label x-small text-muted fw-semibold">Block / Wing</label>
+                                        <select name="block_id" id="assign_block_id" class="form-select form-select-sm border-0 block-selector" disabled>
+                                            <option value="">Select Block...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label x-small text-muted fw-semibold">Floor</label>
+                                        <select name="floor_id" id="assign_floor_id" class="form-select form-select-sm border-0 floor-selector" disabled>
+                                            <option value="">Select Floor...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label x-small text-muted fw-semibold">Room</label>
+                                        <select name="room_id" id="assign_room_id" class="form-select form-select-sm border-0 room-selector" disabled>
+                                            <option value="">Select Room...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label x-small text-muted fw-semibold">Specific Post / Gate / Area</label>
+                                        <input type="text" name="specific_location" class="form-control form-control-sm border-0" placeholder="e.g. Main Gate 1, Kitchen, Dining Hall">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {# Scheduling & Recurrence #}
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Duty Start Date</label>
+                            <input type="date" name="start_date" id="assign_start_date" class="form-control bg-light border-0 check-conflict-trigger" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Duty End Date (Optional)</label>
+                            <input type="date" name="end_date" id="assign_end_date" class="form-control bg-light border-0 check-conflict-trigger">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Shift Start Slot</label>
+                            <input type="time" name="shift_start" id="assign_shift_start" class="form-control bg-light border-0 check-conflict-trigger">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Shift End Slot</label>
+                            <input type="time" name="shift_end" id="assign_shift_end" class="form-control bg-light border-0 check-conflict-trigger">
+                        </div>
+
+                        {# Working Days #}
+                        <div class="col-12">
+                            <label class="form-label small text-secondary fw-semibold d-block">Active Working Days</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for day_code in 'MON,TUE,WED,THU,FRI,SAT,SUN'|split:',' %}
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input check-conflict-trigger" type="checkbox" name="working_days" id="assign_day_{{ day_code }}" value="{{ day_code }}" checked>
+                                    <label class="form-check-label small fw-medium" for="assign_day_{{ day_code }}">{{ day_code }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        {# Supervisor & Override #}
+                        <div class="col-md-8">
+                            <label class="form-label small text-secondary fw-semibold">Designated Supervisor (Optional)</label>
+                            <select name="supervisor_id" class="form-select bg-light border-0">
+                                <option value="">Select Supervisor...</option>
+                                {% for sup in supervisors %}
+                                <option value="{{ sup.id }}">{{ sup.get_full_name|default:sup.username }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Floor (Optional)</label>
-                            <select name="floor_id" class="form-select bg-light border-0 floor-selector" disabled>
-                                <option value="">Select Floor...</option>
-                            </select>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="force_override" value="1" id="assign_force_override">
+                                <label class="form-check-label small text-muted" for="assign_force_override">
+                                    Force Override Conflicts
+                                </label>
+                            </div>
                         </div>
+
                         <div class="col-12">
-                            <label class="form-label small text-secondary fw-semibold">Block (Optional)</label>
-                            <select name="block_id" class="form-select bg-light border-0">
-                                <option value="">Select Block...</option>
-                                {% for bl in blocks %}
-                                <option value="{{ bl.id }}">{{ bl.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label small text-secondary fw-semibold">Specific Post/Location / Gate</label>
-                            <input type="text" name="specific_location" class="form-control bg-light border-0" placeholder="e.g. Main Gate 1, Hostel B Lobby">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Override shift Start</label>
-                            <input type="time" name="shift_start" id="assign_shift_start" class="form-control bg-light border-0">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Override shift End</label>
-                            <input type="time" name="shift_end" id="assign_shift_end" class="form-control bg-light border-0">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label small text-secondary fw-semibold">Instructions / Notes</label>
-                            <textarea name="description" class="form-control bg-light border-0" rows="3" placeholder="Enter special shift instructions..."></textarea>
+                            <label class="form-label small text-secondary fw-semibold">Instructions / Special Orders</label>
+                            <textarea name="description" class="form-control bg-light border-0" rows="2" placeholder="Enter special shift instructions or protocols..."></textarea>
                         </div>
                     </div>
                 </div>
@@ -413,7 +770,7 @@
 
 {# ── MODAL 2: EDIT ASSIGNMENT ── #}
 <div class="modal fade" id="editDutyModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow rounded-4">
             <form method="post" action="" id="editDutyForm">
                 {% csrf_token %}
@@ -423,15 +780,15 @@
                 </div>
                 <div class="modal-body py-3">
                     <div class="row g-3">
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label small text-secondary fw-semibold">Staff Member *</label>
                             <select name="staff_id" id="edit_staff_id" class="form-select bg-light border-0" required>
                                 {% for s in staff_members %}
-                                <option value="{{ s.id }}">{{ s.name }} ({{ s.get_designation_display }})</option>
+                                <option value="{{ s.id }}">{{ s.name }} (Role: {{ s.get_designation_display }})</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label small text-secondary fw-semibold">Duty Template *</label>
                             <select name="duty_id" id="edit_duty_id" class="form-select bg-light border-0" required>
                                 <option value="">Select Duty Template...</option>
@@ -444,45 +801,90 @@
                             <label class="form-label small text-secondary fw-semibold">Custom Title Override</label>
                             <input type="text" name="duty_title" id="edit_duty_title" class="form-control bg-light border-0" required>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Building (Optional)</label>
-                            <select name="building_id" id="edit_building_id" class="form-select bg-light border-0 building-selector">
-                                <option value="">Select Building...</option>
-                                {% for b in buildings %}
-                                <option value="{{ b.id }}">{{ b.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Floor (Optional)</label>
-                            <select name="floor_id" id="edit_floor_id" class="form-select bg-light border-0 floor-selector" disabled>
-                                <option value="">Select Floor...</option>
-                            </select>
-                        </div>
+
+                        {# Hierarchical Location #}
                         <div class="col-12">
-                            <label class="form-label small text-secondary fw-semibold">Block (Optional)</label>
-                            <select name="block_id" id="edit_block_id" class="form-select bg-light border-0">
-                                <option value="">Select Block...</option>
-                                {% for bl in blocks %}
-                                <option value="{{ bl.id }}">{{ bl.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="p-3 bg-light rounded-3">
+                                <h6 class="fw-bold small text-dark mb-2"><i class="bi bi-geo-alt-fill text-primary me-1"></i>Location Hierarchy & Scoping</h6>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <label class="form-label x-small text-muted fw-semibold">Building</label>
+                                        <select name="building_id" id="edit_building_id" class="form-select form-select-sm border-0 building-selector">
+                                            <option value="">Select Building...</option>
+                                            {% for b in buildings %}
+                                            <option value="{{ b.id }}">{{ b.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label x-small text-muted fw-semibold">Block / Wing</label>
+                                        <select name="block_id" id="edit_block_id" class="form-select form-select-sm border-0 block-selector" disabled>
+                                            <option value="">Select Block...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label x-small text-muted fw-semibold">Floor</label>
+                                        <select name="floor_id" id="edit_floor_id" class="form-select form-select-sm border-0 floor-selector" disabled>
+                                            <option value="">Select Floor...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label x-small text-muted fw-semibold">Room</label>
+                                        <select name="room_id" id="edit_room_id" class="form-select form-select-sm border-0 room-selector" disabled>
+                                            <option value="">Select Room...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label x-small text-muted fw-semibold">Specific Post / Gate / Area</label>
+                                        <input type="text" name="specific_location" id="edit_specific_location" class="form-control form-control-sm border-0">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-12">
-                            <label class="form-label small text-secondary fw-semibold">Specific Location / Post</label>
-                            <input type="text" name="specific_location" id="edit_specific_location" class="form-control bg-light border-0">
+
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Duty Start Date</label>
+                            <input type="date" name="start_date" id="edit_start_date" class="form-control bg-light border-0" required>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Override shift Start</label>
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Duty End Date (Optional)</label>
+                            <input type="date" name="end_date" id="edit_end_date" class="form-control bg-light border-0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Shift Start Slot</label>
                             <input type="time" name="shift_start" id="edit_shift_start" class="form-control bg-light border-0">
                         </div>
-                        <div class="col-6">
-                            <label class="form-label small text-secondary fw-semibold">Override shift End</label>
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary fw-semibold">Shift End Slot</label>
                             <input type="time" name="shift_end" id="edit_shift_end" class="form-control bg-light border-0">
                         </div>
+
+                        {# Working Days #}
+                        <div class="col-12">
+                            <label class="form-label small text-secondary fw-semibold d-block">Active Working Days</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for day_code in 'MON,TUE,WED,THU,FRI,SAT,SUN'|split:',' %}
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input edit-day-checkbox" type="checkbox" name="working_days" id="edit_day_{{ day_code }}" value="{{ day_code }}">
+                                    <label class="form-check-label small fw-medium" for="edit_day_{{ day_code }}">{{ day_code }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label small text-secondary fw-semibold">Designated Supervisor (Optional)</label>
+                            <select name="supervisor_id" id="edit_supervisor_id" class="form-select bg-light border-0">
+                                <option value="">Select Supervisor...</option>
+                                {% for sup in supervisors %}
+                                <option value="{{ sup.id }}">{{ sup.get_full_name|default:sup.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
                         <div class="col-12">
                             <label class="form-label small text-secondary fw-semibold">Instructions / Notes</label>
-                            <textarea name="description" id="edit_description" class="form-control bg-light border-0" rows="3"></textarea>
+                            <textarea name="description" id="edit_description" class="form-control bg-light border-0" rows="2"></textarea>
                         </div>
                     </div>
                 </div>
@@ -495,43 +897,70 @@
     </div>
 </div>
 
-{# ── MODAL 3: CREATE DUTY TEMPLATE ── #}
+{# ── MODAL 3: CREATE DUTY TEMPLATE (10-ACTION RBDAC) ── #}
 <div class="modal fade" id="createDutyTemplateModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content border-0 shadow rounded-4">
             <form method="post" action="{% url 'duty_create' %}">
                 {% csrf_token %}
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold text-slate-800"><i class="bi bi-shield-plus text-primary me-2"></i>Create Custom Duty Template</h5>
+                    <h5 class="modal-title fw-bold text-slate-800"><i class="bi bi-shield-plus text-primary me-2"></i>Create Custom RBDAC Duty Template</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body py-3">
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small text-secondary fw-semibold">Duty Name *</label>
-                            <input type="text" name="name" class="form-control bg-light border-0" required placeholder="e.g. Visitor Checkpoint Guard">
+                            <input type="text" name="name" class="form-control bg-light border-0" required placeholder="e.g. Floor Night Warden">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small text-secondary fw-semibold">Duty Category</label>
-                            <input type="text" name="category" class="form-control bg-light border-0" placeholder="e.g. Security, Maintenance, Kitchen">
+                            <input type="text" name="category" class="form-control bg-light border-0" placeholder="e.g. Security, Maintenance, Discipline">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small text-secondary fw-semibold">Priority Level *</label>
                             <select name="priority" class="form-select bg-light border-0" required>
                                 <option value="low">Low Level</option>
                                 <option value="medium" selected>Medium Level</option>
-                                <option value="high">High/Critical</option>
+                                <option value="high">High / Critical</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small text-secondary fw-semibold">Data Access Scope *</label>
+                            <select name="data_scope" class="form-select bg-light border-0" required>
+                                {% for sc_val, sc_lbl in data_scopes %}
+                                <option value="{{ sc_val }}" {% if sc_val == 'BUILDING' %}selected{% endif %}>{{ sc_lbl }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label small text-secondary fw-semibold">Privilege Ceiling Role (Optional)</label>
+                            <select name="privilege_ceiling_role" class="form-select bg-light border-0">
+                                <option value="">None (No Ceiling Limit)</option>
+                                {% for r in roles %}
+                                <option value="{{ r.id }}">{{ r.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="requires_approval" id="create_requires_approval">
+                                <label class="form-check-label small fw-semibold text-slate-800" for="create_requires_approval">
+                                    Requires Supervisor Approval Signoff
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
                             <label class="form-label small text-secondary fw-semibold">Shift Start Slot</label>
                             <input type="time" name="start_time" class="form-control bg-light border-0">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small text-secondary fw-semibold">Shift End Slot</label>
                             <input type="time" name="end_time" class="form-control bg-light border-0">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small text-secondary fw-semibold">Repeat Schedules</label>
                             <select name="repeat_type" class="form-select bg-light border-0">
                                 <option value="none" selected>Once/None</option>
@@ -540,43 +969,63 @@
                                 <option value="monthly">Monthly Repeat</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small text-secondary fw-semibold">Duty Start Date</label>
-                            <input type="date" name="start_date" class="form-control bg-light border-0">
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary fw-semibold">Working Days</label>
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                {% for day_code in 'MON,TUE,WED,THU,FRI,SAT,SUN'|split:',' %}
+                                <div class="form-check form-check-inline m-0 me-1">
+                                    <input class="form-check-input" type="checkbox" name="working_days" value="{{ day_code }}" checked>
+                                    <label class="form-check-label x-small">{{ day_code }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small text-secondary fw-semibold">Duty End Date</label>
-                            <input type="date" name="end_date" class="form-control bg-light border-0">
-                        </div>
+
                         <div class="col-12">
                             <label class="form-label small text-secondary fw-semibold">Template Description</label>
-                            <textarea name="description" class="form-control bg-light border-0" rows="2" placeholder="Briefly describe the responsibilities details..."></textarea>
+                            <textarea name="description" class="form-control bg-light border-0" rows="2" placeholder="Briefly describe the responsibilities and scope of this template..."></textarea>
                         </div>
                         
-                        <!-- RBDAC Checklist -->
-                        <div class="col-12 mt-3">
-                            <h6 class="fw-bold text-slate-800 border-bottom pb-2 mb-2"><i class="bi bi-shield-lock-fill text-indigo me-1"></i>Role-Based Data Access Permissions (RBDAC)</h6>
-                            <p class="text-muted small">Choose which HMS modules this duty is authorized to access. Scopes views, adding, editing or deleting entries.</p>
+                        {# ── 10-ACTION RBDAC MATRIX ── #}
+                        <div class="col-12 mt-2">
+                            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                                <h6 class="fw-bold text-slate-800 mb-0">
+                                    <i class="bi bi-shield-lock-fill text-primary me-1"></i>Role-Based Data Access Permissions (10-Action Matrix)
+                                </h6>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="toggle_all_matrix_create">Select All Permissions</button>
+                            </div>
+                            <p class="text-muted small mb-3">Configure granular capability permissions for this duty template across all HMS modules.</p>
                             
-                            <div class="table-responsive">
-                                <table class="table align-middle text-center small">
+                            <div class="table-responsive border rounded-3 bg-white">
+                                <table class="table table-sm table-bordered align-middle text-center mb-0 small">
                                     <thead class="bg-light text-muted">
                                         <tr>
-                                            <th class="text-start">Module Name</th>
-                                            <th>View Data</th>
-                                            <th>Add Data</th>
-                                            <th>Edit Data</th>
-                                            <th>Delete Data</th>
+                                            <th class="text-start ps-3" style="min-width: 160px;">Module</th>
+                                            <th>View</th>
+                                            <th>Add</th>
+                                            <th>Edit</th>
+                                            <th>Delete</th>
+                                            <th>Approve</th>
+                                            <th>Reject</th>
+                                            <th>Verify</th>
+                                            <th>Export</th>
+                                            <th>Print</th>
+                                            <th>Download</th>
+                                            <th>Assign</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for mod in 'leave,students,attendance'|split:',' %}
+                                        {% for mod_code, mod_label in supported_modules %}
                                         <tr>
-                                            <td class="text-start fw-medium text-capitalize">{{ mod }} Module</td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_view"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_add"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_edit"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_delete"></td>
+                                            <td class="text-start ps-3 fw-semibold text-slate-700">{{ mod_label }}</td>
+                                            {% for act_code, act_label in supported_actions %}
+                                            <td>
+                                                <input class="form-check-input matrix-checkbox matrix-create-cb" 
+                                                       type="checkbox" 
+                                                       name="perm_{{ mod_code }}_{{ act_code }}" 
+                                                       id="perm_{{ mod_code }}_{{ act_code }}">
+                                            </td>
+                                            {% endfor %}
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -587,7 +1036,7 @@
                 </div>
                 <div class="modal-footer border-0 pt-0">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary px-4 shadow-sm">Save Template</button>
+                    <button type="submit" class="btn btn-primary px-4 shadow-sm">Save Duty Template</button>
                 </div>
             </form>
         </div>
@@ -596,21 +1045,21 @@
 
 {# ── MODAL 4: EDIT DUTY TEMPLATE ── #}
 <div class="modal fade" id="editDutyTemplateModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content border-0 shadow rounded-4">
             <form method="post" action="" id="editDutyTemplateForm">
                 {% csrf_token %}
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold text-slate-800"><i class="bi bi-shield-plus text-primary me-2"></i>Edit Custom Duty Template</h5>
+                    <h5 class="modal-title fw-bold text-slate-800"><i class="bi bi-pencil-square text-primary me-2"></i>Edit RBDAC Duty Template</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body py-3">
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small text-secondary fw-semibold">Duty Name *</label>
                             <input type="text" name="name" id="edit_def_name" class="form-control bg-light border-0" required>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small text-secondary fw-semibold">Duty Category</label>
                             <input type="text" name="category" id="edit_def_category" class="form-control bg-light border-0">
                         </div>
@@ -619,18 +1068,45 @@
                             <select name="priority" id="edit_def_priority" class="form-select bg-light border-0" required>
                                 <option value="low">Low Level</option>
                                 <option value="medium">Medium Level</option>
-                                <option value="high">High/Critical</option>
+                                <option value="high">High / Critical</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label small text-secondary fw-semibold">Data Access Scope *</label>
+                            <select name="data_scope" id="edit_def_data_scope" class="form-select bg-light border-0" required>
+                                {% for sc_val, sc_lbl in data_scopes %}
+                                <option value="{{ sc_val }}">{{ sc_lbl }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-4">
+                            <label class="form-label small text-secondary fw-semibold">Privilege Ceiling Role (Optional)</label>
+                            <select name="privilege_ceiling_role" id="edit_def_ceiling" class="form-select bg-light border-0">
+                                <option value="">None (No Ceiling Limit)</option>
+                                {% for r in roles %}
+                                <option value="{{ r.id }}">{{ r.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="requires_approval" id="edit_def_approval">
+                                <label class="form-check-label small fw-semibold text-slate-800" for="edit_def_approval">
+                                    Requires Supervisor Approval Signoff
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
                             <label class="form-label small text-secondary fw-semibold">Shift Start Slot</label>
                             <input type="time" name="start_time" id="edit_def_start_time" class="form-control bg-light border-0">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small text-secondary fw-semibold">Shift End Slot</label>
                             <input type="time" name="end_time" id="edit_def_end_time" class="form-control bg-light border-0">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small text-secondary fw-semibold">Repeat Schedules</label>
                             <select name="repeat_type" id="edit_def_repeat_type" class="form-select bg-light border-0">
                                 <option value="none">Once/None</option>
@@ -639,43 +1115,61 @@
                                 <option value="monthly">Monthly Repeat</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small text-secondary fw-semibold">Duty Start Date</label>
-                            <input type="date" name="start_date" id="edit_def_start_date" class="form-control bg-light border-0">
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary fw-semibold">Working Days</label>
+                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                {% for day_code in 'MON,TUE,WED,THU,FRI,SAT,SUN'|split:',' %}
+                                <div class="form-check form-check-inline m-0 me-1">
+                                    <input class="form-check-input edit-def-day-cb" type="checkbox" name="working_days" id="edit_def_day_{{ day_code }}" value="{{ day_code }}">
+                                    <label class="form-check-label x-small">{{ day_code }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label small text-secondary fw-semibold">Duty End Date</label>
-                            <input type="date" name="end_date" id="edit_def_end_date" class="form-control bg-light border-0">
-                        </div>
+
                         <div class="col-12">
                             <label class="form-label small text-secondary fw-semibold">Template Description</label>
                             <textarea name="description" id="edit_def_description" class="form-control bg-light border-0" rows="2"></textarea>
                         </div>
                         
-                        <!-- RBDAC Checklist -->
-                        <div class="col-12 mt-3">
-                            <h6 class="fw-bold text-slate-800 border-bottom pb-2 mb-2"><i class="bi bi-shield-lock-fill text-indigo me-1"></i>Role-Based Data Access Permissions (RBDAC)</h6>
-                            <p class="text-muted small">Choose which HMS modules this duty is authorized to access. Scopes views, adding, editing or deleting entries.</p>
+                        {# ── 10-ACTION RBDAC MATRIX ── #}
+                        <div class="col-12 mt-2">
+                            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                                <h6 class="fw-bold text-slate-800 mb-0">
+                                    <i class="bi bi-shield-lock-fill text-primary me-1"></i>Role-Based Data Access Permissions (10-Action Matrix)
+                                </h6>
+                            </div>
                             
-                            <div class="table-responsive">
-                                <table class="table align-middle text-center small">
+                            <div class="table-responsive border rounded-3 bg-white">
+                                <table class="table table-sm table-bordered align-middle text-center mb-0 small">
                                     <thead class="bg-light text-muted">
                                         <tr>
-                                            <th class="text-start">Module Name</th>
-                                            <th>View Data</th>
-                                            <th>Add Data</th>
-                                            <th>Edit Data</th>
-                                            <th>Delete Data</th>
+                                            <th class="text-start ps-3" style="min-width: 160px;">Module</th>
+                                            <th>View</th>
+                                            <th>Add</th>
+                                            <th>Edit</th>
+                                            <th>Delete</th>
+                                            <th>Approve</th>
+                                            <th>Reject</th>
+                                            <th>Verify</th>
+                                            <th>Export</th>
+                                            <th>Print</th>
+                                            <th>Download</th>
+                                            <th>Assign</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="edit_def_permissions_tbody">
-                                        {% for mod in 'leave,students,attendance'|split:',' %}
+                                    <tbody>
+                                        {% for mod_code, mod_label in supported_modules %}
                                         <tr>
-                                            <td class="text-start fw-medium text-capitalize">{{ mod }} Module</td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_view" id="edit_perm_{{ mod }}_view"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_add" id="edit_perm_{{ mod }}_add"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_edit" id="edit_perm_{{ mod }}_edit"></td>
-                                            <td><input class="form-check-input" type="checkbox" name="perm_{{ mod }}_delete" id="edit_perm_{{ mod }}_delete"></td>
+                                            <td class="text-start ps-3 fw-semibold text-slate-700">{{ mod_label }}</td>
+                                            {% for act_code, act_label in supported_actions %}
+                                            <td>
+                                                <input class="form-check-input matrix-checkbox matrix-edit-cb" 
+                                                       type="checkbox" 
+                                                       name="perm_{{ mod_code }}_{{ act_code }}" 
+                                                       id="edit_perm_{{ mod_code }}_{{ act_code }}">
+                                            </td>
+                                            {% endfor %}
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -693,14 +1187,57 @@
     </div>
 </div>
 
+{# ── MODAL 5: EMERGENCY HANDOVER ── #}
+<div class="modal fade" id="handoverModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow rounded-4">
+            <form method="post" action="" id="handoverForm">
+                {% csrf_token %}
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-slate-800"><i class="bi bi-arrow-left-right text-warning me-2"></i>Emergency Duty Handover</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body py-3">
+                    <p class="text-muted small">Transfer duty responsibility and scoped access immediately to a qualified substitute staff member.</p>
+                    <div class="p-3 bg-light rounded-3 mb-3">
+                        <div class="text-muted small">Current Duty:</div>
+                        <div class="fw-bold text-dark" id="handover_duty_title">--</div>
+                        <div class="text-muted small mt-1">Current Assignee: <span class="fw-medium text-dark" id="handover_current_staff">--</span></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary fw-semibold">Substitute Replacement Staff *</label>
+                        <select name="substitute_staff_id" class="form-select bg-light border-0" required>
+                            <option value="" disabled selected>Select Replacement Staff...</option>
+                            {% for s in staff_members %}
+                            <option value="{{ s.id }}">{{ s.name }} (Role: {{ s.get_designation_display }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary fw-semibold">Reason for Handover *</label>
+                        <textarea name="reason" class="form-control bg-light border-0" rows="3" required placeholder="Mandatory reason for handover (e.g. medical emergency, shift swap)..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning px-4 text-dark fw-semibold">Transfer Duty Immediately</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# Calendar Events JSON Payload #}
 <script id="calendar-events-data" type="application/json">
 [
     {% for d in assignments %}
     {
         "title": "{{ d.staff.name|escapejs }} - {{ d.duty_title|escapejs }}",
-        "start": "{{ d.assigned_date|date:'Y-m-d' }}{% if d.shift_start %}T{{ d.shift_start|time:'H:i:s' }}{% endif %}",
-        "end": "{{ d.assigned_date|date:'Y-m-d' }}{% if d.shift_end %}T{{ d.shift_end|time:'H:i:s' }}{% endif %}",
-        "description": "{{ d.description|escapejs }}",
+        "start": "{{ d.start_date|date:'Y-m-d' }}{% if d.shift_start %}T{{ d.shift_start|time:'H:i:s' }}{% endif %}",
+        "end": "{% if d.end_date %}{{ d.end_date|date:'Y-m-d' }}{% else %}{{ d.start_date|date:'Y-m-d' }}{% endif %}{% if d.shift_end %}T{{ d.shift_end|time:'H:i:s' }}{% endif %}",
+        "description": "Location: {{ d.location_display|escapejs }}
+Shift: {{ d.shift_start|time:'g:i A'|default:'--' }} - {{ d.shift_end|time:'g:i A'|default:'--' }}
+Status: {{ d.get_status_display|escapejs }}",
         "textColor": "#ffffff",
         "backgroundColor": "{% if d.duty.priority == 'high' %}#ef4444{% elif d.duty.priority == 'medium' %}#f59e0b{% else %}#10b981{% endif %}",
         "borderColor": "{% if d.duty.priority == 'high' %}#ef4444{% elif d.duty.priority == 'medium' %}#f59e0b{% else %}#10b981{% endif %}"
@@ -708,7 +1245,9 @@
     {% endfor %}
 ]
 </script>
+
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     
@@ -721,10 +1260,186 @@ document.addEventListener('DOMContentLoaded', function() {
     if (assignDutyId) {
         assignDutyId.addEventListener('change', function() {
             const opt = this.options[this.selectedIndex];
-            assignDutyTitle.value = opt.dataset.name || '';
-            assignShiftStart.value = opt.dataset.start || '';
-            assignShiftEnd.value = opt.dataset.end || '';
+            if (assignDutyTitle && !assignDutyTitle.value) {
+                assignDutyTitle.value = opt.dataset.name || '';
+            }
+            if (opt.dataset.start) assignShiftStart.value = opt.dataset.start;
+            if (opt.dataset.end) assignShiftEnd.value = opt.dataset.end;
+            
+            // Check days
+            const daysStr = opt.dataset.days || 'MON,TUE,WED,THU,FRI,SAT,SUN';
+            const daysList = daysStr.split(',').map(d => d.trim().toUpperCase());
+            ['MON','TUE','WED','THU','FRI','SAT','SUN'].forEach(d => {
+                const cb = document.getElementById(`assign_day_${d}`);
+                if (cb) cb.checked = daysList.includes(d);
+            });
+
+            checkAssignConflict();
         });
+    }
+
+    // Dynamic conflict checker in Assign Duty Modal
+    async function checkAssignConflict() {
+        const staffId = document.getElementById('assign_staff_id')?.value;
+        const startDate = document.getElementById('assign_start_date')?.value;
+        const endDate = document.getElementById('assign_end_date')?.value || '';
+        const shiftStart = document.getElementById('assign_shift_start')?.value || '';
+        const shiftEnd = document.getElementById('assign_shift_end')?.value || '';
+
+        const selectedDays = [];
+        document.querySelectorAll('input[name="working_days"]:checked').forEach(cb => selectedDays.push(cb.value));
+
+        const alertBox = document.getElementById('assign_conflict_alert');
+        const alertMsg = document.getElementById('assign_conflict_msg');
+
+        if (!staffId || !startDate) {
+            if (alertBox) alertBox.classList.add('d-none');
+            return;
+        }
+
+        try {
+            const params = new URLSearchParams({
+                staff_id: staffId,
+                start_date: startDate,
+                end_date: endDate,
+                shift_start: shiftStart,
+                shift_end: shiftEnd,
+                working_days: selectedDays.join(',')
+            });
+            const res = await fetch(`/staff/duties/ajax/check-conflict/?${params.toString()}`);
+            const data = await res.json();
+
+            if (data.conflict) {
+                alertBox.classList.remove('d-none', 'alert-info');
+                alertBox.classList.add('alert-warning');
+                alertMsg.innerHTML = `<strong>Shift Conflict:</strong> ${data.conflict_reason}`;
+            } else if (data.on_leave) {
+                alertBox.classList.remove('d-none', 'alert-warning');
+                alertBox.classList.add('alert-info');
+                alertMsg.innerHTML = `<strong>Staff Notice:</strong> ${data.leave_reason}`;
+            } else {
+                alertBox.classList.add('d-none');
+            }
+        } catch (e) {
+            console.error('Conflict check error:', e);
+        }
+    }
+
+    document.querySelectorAll('.check-conflict-trigger').forEach(el => {
+        el.addEventListener('change', checkAssignConflict);
+    });
+    document.getElementById('assign_staff_id')?.addEventListener('change', checkAssignConflict);
+
+    // Cascading Location Selector Helper (Building -> Block & Floor -> Rooms)
+    async function setupLocationCascade(buildingSelect, blockSelect, floorSelect, roomSelect, initialBlock = '', initialFloor = '', initialRoom = '') {
+        const buildingId = buildingSelect.value;
+        blockSelect.innerHTML = '<option value="">Select Block...</option>';
+        floorSelect.innerHTML = '<option value="">Select Floor...</option>';
+        roomSelect.innerHTML = '<option value="">Select Room...</option>';
+
+        if (!buildingId) {
+            blockSelect.disabled = true;
+            floorSelect.disabled = true;
+            roomSelect.disabled = true;
+            return;
+        }
+
+        try {
+            const res = await fetch(`/staff/duties/ajax/get-floors/?building_id=${buildingId}`);
+            const data = await res.json();
+
+            // Populate Blocks
+            if (data.blocks && data.blocks.length > 0) {
+                data.blocks.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b;
+                    opt.textContent = `Block ${b}`;
+                    if (initialBlock && b.toUpperCase() === initialBlock.toUpperCase()) opt.selected = true;
+                    blockSelect.appendChild(opt);
+                });
+                blockSelect.disabled = false;
+            } else {
+                blockSelect.disabled = true;
+            }
+
+            // Populate Floors
+            if (data.floors && data.floors.length > 0) {
+                data.floors.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f.id;
+                    opt.textContent = `Floor ${f.floor_number}`;
+                    if (initialFloor && String(f.id) === String(initialFloor)) opt.selected = true;
+                    floorSelect.appendChild(opt);
+                });
+                floorSelect.disabled = false;
+            } else {
+                floorSelect.disabled = true;
+            }
+
+            // Load rooms if floor is already selected
+            await loadRooms(buildingSelect, floorSelect, blockSelect, roomSelect, initialRoom);
+
+        } catch (e) {
+            console.error('Error fetching location hierarchy:', e);
+        }
+    }
+
+    async function loadRooms(buildingSelect, floorSelect, blockSelect, roomSelect, initialRoom = '') {
+        const buildingId = buildingSelect.value;
+        const floor = floorSelect.value;
+        const block = blockSelect.value;
+
+        roomSelect.innerHTML = '<option value="">Select Room...</option>';
+        if (!buildingId) {
+            roomSelect.disabled = true;
+            return;
+        }
+
+        try {
+            const params = new URLSearchParams({ building_id: buildingId, floor: floor, block: block });
+            const res = await fetch(`/staff/duties/ajax/get-rooms/?${params.toString()}`);
+            const data = await res.json();
+
+            if (data.rooms && data.rooms.length > 0) {
+                data.rooms.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.id;
+                    opt.textContent = `Room ${r.room_number} (${r.category})`;
+                    if (initialRoom && String(r.id) === String(initialRoom)) opt.selected = true;
+                    roomSelect.appendChild(opt);
+                });
+                roomSelect.disabled = false;
+            } else {
+                roomSelect.disabled = true;
+            }
+        } catch (e) {
+            console.error('Error loading rooms:', e);
+            roomSelect.disabled = true;
+        }
+    }
+
+    // Attach cascade events in Assign Duty modal
+    const assignBld = document.getElementById('assign_building_id');
+    const assignBlk = document.getElementById('assign_block_id');
+    const assignFlr = document.getElementById('assign_floor_id');
+    const assignRm = document.getElementById('assign_room_id');
+
+    if (assignBld) {
+        assignBld.addEventListener('change', () => setupLocationCascade(assignBld, assignBlk, assignFlr, assignRm));
+        assignBlk.addEventListener('change', () => loadRooms(assignBld, assignFlr, assignBlk, assignRm));
+        assignFlr.addEventListener('change', () => loadRooms(assignBld, assignFlr, assignBlk, assignRm));
+    }
+
+    // Attach cascade events in Edit Assignment modal
+    const editBld = document.getElementById('edit_building_id');
+    const editBlk = document.getElementById('edit_block_id');
+    const editFlr = document.getElementById('edit_floor_id');
+    const editRm = document.getElementById('edit_room_id');
+
+    if (editBld) {
+        editBld.addEventListener('change', () => setupLocationCascade(editBld, editBlk, editFlr, editRm));
+        editBlk.addEventListener('change', () => loadRooms(editBld, editFlr, editBlk, editRm));
+        editFlr.addEventListener('change', () => loadRooms(editBld, editFlr, editBlk, editRm));
     }
 
     // Initialize FullCalendar
@@ -752,14 +1467,13 @@ document.addEventListener('DOMContentLoaded', function() {
             eventClick: function(info) {
                 Swal.fire({
                     title: info.event.title,
-                    text: info.event.extendedProps.description || 'No direct shift instructions provided.',
+                    html: `<div class="text-start small p-2">${info.event.extendedProps.description.replace(/\n/g, '<br>')}</div>`,
                     icon: 'info',
                     confirmButtonColor: '#4f46e5'
                 });
             }
         });
         
-        // Render calendar when tab is activated (fixes layout issues with hidden tabs)
         const tabEl = document.getElementById('calendar-tab');
         if (tabEl) {
             tabEl.addEventListener('shown.bs.tab', function () {
@@ -767,122 +1481,180 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-    
-    // AJAX floors selector helper
-    async function loadFloors(buildingSelect, floorSelect, selectedFloorId = null) {
-        const buildingId = buildingSelect.value;
-        floorSelect.innerHTML = '<option value="">Select Floor...</option>';
-        if (!buildingId) {
-            floorSelect.disabled = true;
-            return;
-        }
-        
-        try {
-            const res = await fetch(`/staff/duties/ajax/get-floors/?building_id=${buildingId}`);
-            const data = await res.json();
-            
-            if (data.floors && data.floors.length > 0) {
-                data.floors.forEach(f => {
-                    const opt = document.createElement('option');
-                    opt.value = f.id;
-                    opt.textContent = `Floor ${f.floor_number}`;
-                    if (selectedFloorId && f.id == selectedFloorId) {
-                        opt.selected = true;
-                    }
-                    floorSelect.appendChild(opt);
-                });
-                floorSelect.disabled = false;
-            } else {
-                floorSelect.disabled = true;
-            }
-        } catch (e) {
-            console.error('Error fetching floors:', e);
-            floorSelect.disabled = true;
-        }
-    }
 
-    // Attach AJAX floor loading selectors on modals
-    document.querySelectorAll('.building-selector').forEach(sel => {
-        sel.addEventListener('change', function() {
-            const form = this.closest('form');
-            const floorSel = form.querySelector('.floor-selector');
-            loadFloors(this, floorSel);
-        });
-    });
-
-    // Populate and open edit assignment modal
+    // Edit Assignment Modal Populate
     const editModal = new bootstrap.Modal(document.getElementById('editDutyModal'));
     document.querySelectorAll('.edit-duty-btn').forEach(btn => {
         btn.addEventListener('click', async function() {
             const id = this.dataset.id;
-            const staffId = this.dataset.staff;
-            const dutyId = this.dataset.duty;
-            const title = this.dataset.title;
-            const buildingId = this.dataset.building;
-            const blockId = this.dataset.block;
-            const floorId = this.dataset.floor;
-            const location = this.dataset.location;
-            const start = this.dataset.start;
-            const end = this.dataset.end;
-            const desc = this.dataset.desc;
-            
             document.getElementById('editDutyForm').action = `/staff/duties/${id}/edit/`;
-            
-            document.getElementById('edit_staff_id').value = staffId;
-            document.getElementById('edit_duty_id').value = dutyId;
-            document.getElementById('edit_duty_title').value = title;
-            document.getElementById('edit_block_id').value = blockId;
-            document.getElementById('edit_specific_location').value = location;
-            document.getElementById('edit_shift_start').value = start;
-            document.getElementById('edit_shift_end').value = end;
-            document.getElementById('edit_description').value = desc;
 
-            const buildingSelect = document.getElementById('edit_building_id');
-            const floorSelect = document.getElementById('edit_floor_id');
-            buildingSelect.value = buildingId;
-            
-            await loadFloors(buildingSelect, floorSelect, floorId);
+            document.getElementById('edit_staff_id').value = this.dataset.staff;
+            document.getElementById('edit_duty_id').value = this.dataset.duty;
+            document.getElementById('edit_duty_title').value = this.dataset.title;
+            document.getElementById('edit_specific_location').value = this.dataset.location;
+            document.getElementById('edit_start_date').value = this.dataset.startDate;
+            document.getElementById('edit_end_date').value = this.dataset.endDate;
+            document.getElementById('edit_shift_start').value = this.dataset.start;
+            document.getElementById('edit_shift_end').value = this.dataset.end;
+            document.getElementById('edit_supervisor_id').value = this.dataset.supervisor;
+            document.getElementById('edit_description').value = this.dataset.desc;
+
+            // Working days checkboxes
+            const daysList = (this.dataset.workingDays || 'MON,TUE,WED,THU,FRI,SAT,SUN').split(',').map(d => d.trim().toUpperCase());
+            ['MON','TUE','WED','THU','FRI','SAT','SUN'].forEach(d => {
+                const cb = document.getElementById(`edit_day_${d}`);
+                if (cb) cb.checked = daysList.includes(d);
+            });
+
+            // Setup cascading location
+            editBld.value = this.dataset.building;
+            await setupLocationCascade(editBld, editBlk, editFlr, editRm, this.dataset.block, this.dataset.floor, this.dataset.room);
+
             editModal.show();
         });
     });
 
-    // Populate and open edit definition template modal
-    const editDefModal = new bootstrap.Modal(document.getElementById('editDutyTemplateModal'));
-    document.querySelectorAll('.edit-def-btn').forEach(btn => {
+    // Emergency Handover Modal Populate
+    const handoverModal = new bootstrap.Modal(document.getElementById('handoverModal'));
+    document.querySelectorAll('.handover-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.dataset.id;
-            const name = this.dataset.name;
-            const category = this.dataset.category;
-            const priority = this.dataset.priority;
-            const desc = this.dataset.desc;
-            const startDate = this.dataset.startDate;
-            const endDate = this.dataset.endDate;
-            const startTime = this.dataset.startTime;
-            const endTime = this.dataset.endTime;
-            const repeat = this.dataset.repeat;
-            
-            document.getElementById('editDutyTemplateForm').action = `/staff/duties/definitions/${id}/edit/`;
-            
-            document.getElementById('edit_def_name').value = name;
-            document.getElementById('edit_def_category').value = category;
-            document.getElementById('edit_def_priority').value = priority;
-            document.getElementById('edit_def_description').value = desc;
-            document.getElementById('edit_def_start_date').value = startDate;
-            document.getElementById('edit_def_end_date').value = endDate;
-            document.getElementById('edit_def_start_time').value = startTime;
-            document.getElementById('edit_def_end_time').value = endTime;
-            document.getElementById('edit_def_repeat_type').value = repeat;
-            
-            // Checkboxes
-            const modules = ['leave', 'students', 'attendance'];
-            modules.forEach(m => {
-                document.getElementById(`edit_perm_${m}_view`).checked = btn.dataset[`perm${m.charAt(0).toUpperCase() + m.slice(1)}View`] === 'on';
-                document.getElementById(`edit_perm_${m}_add`).checked = btn.dataset[`perm${m.charAt(0).toUpperCase() + m.slice(1)}Add`] === 'on';
-                document.getElementById(`edit_perm_${m}_edit`).checked = btn.dataset[`perm${m.charAt(0).toUpperCase() + m.slice(1)}Edit`] === 'on';
-                document.getElementById(`edit_perm_${m}_delete`).checked = btn.dataset[`perm${m.charAt(0).toUpperCase() + m.slice(1)}Delete`] === 'on';
+            document.getElementById('handoverForm').action = `/staff/duties/${id}/handover/`;
+            document.getElementById('handover_duty_title').textContent = this.dataset.title;
+            document.getElementById('handover_current_staff').textContent = this.dataset.staffName;
+            handoverModal.show();
+        });
+    });
+
+    // Approve Shift Action with SweetAlert2
+    document.querySelectorAll('.approve-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const title = this.dataset.title;
+            const staffName = this.dataset.staffName;
+
+            Swal.fire({
+                title: 'Approve Duty Assignment?',
+                text: `Approve and activate "${title}" for ${staffName}?`,
+                input: 'textarea',
+                inputPlaceholder: 'Optional approval notes...',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Yes, Approve Shift'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = `/staff/duties/${id}/approve/`;
+
+                    const csrf = document.createElement('input');
+                    csrf.type = 'hidden';
+                    csrf.name = 'csrfmiddlewaretoken';
+                    csrf.value = '{{ csrf_token }}';
+                    form.appendChild(csrf);
+
+                    const notes = document.createElement('input');
+                    notes.type = 'hidden';
+                    notes.name = 'notes';
+                    notes.value = result.value || '';
+                    form.appendChild(notes);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
             });
-            
-            editDefModal.show();
+        });
+    });
+
+    // Reject Shift Action with SweetAlert2
+    document.querySelectorAll('.reject-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const title = this.dataset.title;
+            const staffName = this.dataset.staffName;
+
+            Swal.fire({
+                title: 'Reject Duty Assignment?',
+                text: `Provide a mandatory rejection reason for "${title}" (${staffName}):`,
+                input: 'textarea',
+                inputPlaceholder: 'Enter mandatory reason for rejection...',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Reject Shift',
+                inputValidator: (value) => {
+                    if (!value || !value.trim()) {
+                        return 'A rejection reason is required!';
+                    }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = `/staff/duties/${id}/reject/`;
+
+                    const csrf = document.createElement('input');
+                    csrf.type = 'hidden';
+                    csrf.name = 'csrfmiddlewaretoken';
+                    csrf.value = '{{ csrf_token }}';
+                    form.appendChild(csrf);
+
+                    const reason = document.createElement('input');
+                    reason.type = 'hidden';
+                    reason.name = 'reason';
+                    reason.value = result.value;
+                    form.appendChild(reason);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        });
+    });
+
+    // Immediate Revoke Killswitch
+    document.querySelectorAll('.revoke-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            const title = this.dataset.title;
+            const staffName = this.dataset.staffName;
+
+            Swal.fire({
+                title: 'Immediate Access Revocation?',
+                text: `Are you sure you want to trigger the emergency killswitch on "${title}" for ${staffName}? All duty permissions will be cut immediately.`,
+                icon: 'error',
+                input: 'textarea',
+                inputPlaceholder: 'Reason for emergency revocation...',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Revoke Access Immediately'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = `/staff/duties/${id}/revoke/`;
+
+                    const csrf = document.createElement('input');
+                    csrf.type = 'hidden';
+                    csrf.name = 'csrfmiddlewaretoken';
+                    csrf.value = '{{ csrf_token }}';
+                    form.appendChild(csrf);
+
+                    const reason = document.createElement('input');
+                    reason.type = 'hidden';
+                    reason.name = 'reason';
+                    reason.value = result.value || 'Immediate emergency revocation.';
+                    form.appendChild(reason);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
         });
     });
 
@@ -894,13 +1666,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const title = this.dataset.title;
             
             Swal.fire({
-                title: 'Cancel Duty Assignment?',
-                text: `Are you sure you want to cancel the duty assignment "${title}" delegated to ${name}?`,
+                title: 'Delete Duty Record?',
+                text: `Permanently delete assignment "${title}" for ${name}?`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: 'Yes, Cancel it!'
+                confirmButtonText: 'Yes, Delete'
             }).then((result) => {
                 if (result.isConfirmed) {
                     const form = document.createElement('form');
@@ -920,15 +1692,58 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // SweetAlert2 delete confirmation for duty definition template
+    // Edit Template Modal Populate
+    const editDefModal = new bootstrap.Modal(document.getElementById('editDutyTemplateModal'));
+    document.querySelectorAll('.edit-def-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const id = this.dataset.id;
+            document.getElementById('editDutyTemplateForm').action = `/staff/duties/definitions/${id}/edit/`;
+
+            document.getElementById('edit_def_name').value = this.dataset.name;
+            document.getElementById('edit_def_category').value = this.dataset.category;
+            document.getElementById('edit_def_priority').value = this.dataset.priority;
+            document.getElementById('edit_def_data_scope').value = this.dataset.scope || 'BUILDING';
+            document.getElementById('edit_def_ceiling').value = this.dataset.ceiling || '';
+            document.getElementById('edit_def_approval').checked = (this.dataset.approval === 'on');
+            document.getElementById('edit_def_description').value = this.dataset.desc;
+            document.getElementById('edit_def_start_time').value = this.dataset.startTime;
+            document.getElementById('edit_def_end_time').value = this.dataset.endTime;
+            document.getElementById('edit_def_repeat_type').value = this.dataset.repeat;
+
+            // Working days
+            const daysList = (this.dataset.workingDays || 'MON,TUE,WED,THU,FRI,SAT,SUN').split(',').map(d => d.trim().toUpperCase());
+            ['MON','TUE','WED','THU','FRI','SAT','SUN'].forEach(d => {
+                const cb = document.getElementById(`edit_def_day_${d}`);
+                if (cb) cb.checked = daysList.includes(d);
+            });
+
+            // 10-Action Matrix Checkboxes
+            const modules = ['student', 'room', 'leave', 'attendance', 'complaint', 'fee', 'visitor', 'duty_management'];
+            const actions = ['view', 'add', 'edit', 'delete', 'approve', 'reject', 'verify', 'export', 'print', 'download', 'assign'];
+
+            modules.forEach(m => {
+                actions.forEach(act => {
+                    const cb = document.getElementById(`edit_perm_${m}_${act}`);
+                    if (cb) {
+                        const attr = `perm${m.charAt(0).toUpperCase() + m.slice(1)}${act.charAt(0).toUpperCase() + act.slice(1)}`;
+                        cb.checked = (btn.dataset[attr] === 'on');
+                    }
+                });
+            });
+
+            editDefModal.show();
+        });
+    });
+
+    // Delete Template Confirmation
     document.querySelectorAll('.delete-def-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.dataset.id;
             const name = this.dataset.name;
-            
+
             Swal.fire({
                 title: 'Delete Duty Template?',
-                text: `Are you sure you want to delete the RBDAC definition template for "${name}"? Active staff shifts using this card will revert to defaults.`,
+                text: `Delete "${name}" template? Any existing staff assignments using this template will retain their snapshot data.`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
@@ -939,19 +1754,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     const form = document.createElement('form');
                     form.method = 'POST';
                     form.action = `/staff/duties/definitions/${id}/delete/`;
-                    
+
                     const csrf = document.createElement('input');
                     csrf.type = 'hidden';
                     csrf.name = 'csrfmiddlewaretoken';
                     csrf.value = '{{ csrf_token }}';
                     form.appendChild(csrf);
-                    
+
                     document.body.appendChild(form);
                     form.submit();
                 }
             });
         });
     });
+
+    // Toggle All Matrix Checkboxes in Create Template Modal
+    const toggleMatrixBtn = document.getElementById('toggle_all_matrix_create');
+    if (toggleMatrixBtn) {
+        let allChecked = false;
+        toggleMatrixBtn.addEventListener('click', function() {
+            allChecked = !allChecked;
+            document.querySelectorAll('.matrix-create-cb').forEach(cb => cb.checked = allChecked);
+            this.textContent = allChecked ? 'Deselect All Permissions' : 'Select All Permissions';
+        });
+    }
+
 });
 </script>
 {% endblock %}

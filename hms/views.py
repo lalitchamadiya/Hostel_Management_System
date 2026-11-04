@@ -900,22 +900,132 @@ def export_report(request, module):
 
 
 # ──────────────────────────────────────────────────────
-# STAFF DUTY ASSIGNMENT MODULE
+# ──────────────────────────────────────────────────────
+# ENTERPRISE STAFF DUTY ACCESS & SCHEDULING MODULE
 # ──────────────────────────────────────────────────────
 from authentication.decorators import permission_required, api_permission_required
+from hms.duty_services import DutyConflictService, DutyAuthorizationService, DutyWorkflowService
+from room.models import HostelBuilding, Room
+
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'view')
 def duty_list(request):
-    assignments = DutyAssignment.objects.select_related('staff', 'duty').filter(is_active=True).order_by('-assigned_date')
-    staff_members = StaffProfile.objects.filter(status='active').order_by('name')
-    duties = Duty.objects.prefetch_related('permissions').all().order_by('name')
-    
+    """Enterprise Duty Monitoring & Workforce Scheduling Dashboard."""
+    # Base assignments queryset with full relationships
+    assignments_qs = DutyAssignment.objects.select_related(
+        'staff', 'staff__user', 'staff__user__profile', 'duty', 'building', 'room', 'hostel', 'supervisor'
+    ).order_by('-assigned_date', '-id')
+
+    # Filters
+    search = request.GET.get('q', '').strip()
+    building_filter = request.GET.get('building', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    priority_filter = request.GET.get('priority', '').strip()
+
+    if search:
+        assignments_qs = assignments_qs.filter(
+            Q(staff__name__icontains=search) |
+            Q(staff__email__icontains=search) |
+            Q(duty_title__icontains=search) |
+            Q(specific_location__icontains=search) |
+            Q(building__name__icontains=search)
+        )
+    if building_filter and building_filter.isdigit():
+        assignments_qs = assignments_qs.filter(building_id=int(building_filter))
+    if status_filter:
+        if status_filter == 'LIVE_ON_SHIFT':
+            assignments_qs = [a for a in assignments_qs if a.is_currently_on_shift]
+        else:
+            assignments_qs = assignments_qs.filter(status=status_filter)
+    if priority_filter:
+        assignments_qs = assignments_qs.filter(duty__priority=priority_filter)
+
+    # Convert to list if queryset filtered in memory
+    assignments_list = list(assignments_qs) if not isinstance(assignments_qs, list) else assignments_qs
+
+    # Comprehensive Stat Aggregations
+    all_active = DutyAssignment.objects.filter(is_active=True)
+    today = timezone.localtime(timezone.now()).date()
+    two_days_later = today + timezone.timedelta(days=2)
+
+    stats = {
+        'total': DutyAssignment.objects.count(),
+        'active_count': all_active.count(),
+        'on_duty_now': sum(1 for a in all_active if a.is_currently_on_shift),
+        'pending_approvals': DutyAssignment.objects.filter(status='PENDING_APPROVAL').count(),
+        'expiring_soon': DutyAssignment.objects.filter(
+            is_active=True,
+            end_date__gte=today,
+            end_date__lte=two_days_later
+        ).count(),
+    }
+
+    # Dynamic system roles and eligible staff (excluding superusers/superadmins)
+    staff_members = StaffProfile.objects.exclude(
+        user__is_superuser=True
+    ).exclude(
+        user__profile__role__is_superadmin=True
+    ).exclude(
+        user__profile__role__name__iexact='Super Admin'
+    ).filter(status='active').order_by('name')
+
+    duties = Duty.objects.prefetch_related('permissions').select_related('privilege_ceiling_role').all().order_by('name')
+    buildings = HostelBuilding.objects.filter(is_active=True).order_by('name')
+    roles = Role.objects.filter(is_active=True).exclude(is_superadmin=True).exclude(name__iexact='Super Admin').order_by('name')
+
+    # Eligible supervisors (admin / coordinator staff)
+    supervisors = User.objects.filter(is_active=True).exclude(is_superuser=True).order_by('first_name', 'username')
+
+    # Supported Modules and Actions Matrix for RBDAC configuration
+    supported_modules = [
+        ('student', 'Student Management'),
+        ('room', 'Rooms & Beds'),
+        ('leave', 'Leave Management'),
+        ('attendance', 'Attendance Records'),
+        ('complaint', 'Complaint System'),
+        ('fee', 'Fee & Finance'),
+        ('visitor', 'Visitor Log'),
+        ('duty_management', 'Duty Access Module'),
+    ]
+
+    supported_actions = [
+        ('view', 'View'),
+        ('add', 'Add'),
+        ('edit', 'Edit'),
+        ('delete', 'Delete'),
+        ('approve', 'Approve'),
+        ('reject', 'Reject'),
+        ('verify', 'Verify'),
+        ('export', 'Export'),
+        ('print', 'Print'),
+        ('download', 'Download'),
+        ('assign', 'Assign'),
+    ]
+
     context = {
-        'page_title': 'Staff Duty Assignments',
-        'assignments': assignments,
+        'page_title': 'Staff Duties & Workforce Access Control',
+        'assignments': assignments_list,
+        'stats': stats,
         'staff_members': staff_members,
         'duties': duties,
+        'buildings': buildings,
+        'roles': roles,
+        'supervisors': supervisors,
+        'supported_modules': supported_modules,
+        'supported_actions': supported_actions,
+        'search': search,
+        'building_filter': building_filter,
+        'status_filter': status_filter,
+        'priority_filter': priority_filter,
+        'assignment_statuses': DutyAssignment.ASSIGNMENT_STATUS,
+        'data_scopes': Duty.SCOPE_CHOICES,
     }
     return render(request, 'hms/duty_list.html', context)
 
@@ -923,18 +1033,57 @@ def duty_list(request):
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'add')
 def duty_assign(request):
+    """Creates a new duty assignment with hierarchical location, conflict validation, and approval workflow."""
     if request.method == 'POST':
         data = request.POST
         staff_id = data.get('staff_id')
         duty_id = data.get('duty_id')
         duty_title = data.get('duty_title', '').strip()
+        building_id = data.get('building_id') or None
+        block = data.get('block_id', '').strip() or None
+        floor = data.get('floor_id') or None
+        room_id = data.get('room_id') or None
         specific_location = data.get('specific_location', '').strip()
+
+        start_date = data.get('start_date') or timezone.localtime(timezone.now()).date()
+        end_date = data.get('end_date') or None
         shift_start = data.get('shift_start') or None
         shift_end = data.get('shift_end') or None
+        working_days_list = data.getlist('working_days')
+        working_days = ",".join(working_days_list) if working_days_list else 'MON,TUE,WED,THU,FRI,SAT,SUN'
+
+        supervisor_id = data.get('supervisor_id') or None
         description = data.get('description', '').strip()
-        
+        force_override = data.get('force_override') == '1'
+
         staff = get_object_or_404(StaffProfile, pk=staff_id)
-        
+
+        # 1. Location Hierarchy Validation
+        is_valid_loc, loc_err = DutyConflictService.validate_location_hierarchy(
+            building_id=building_id, block=block, floor=floor, room_id=room_id
+        )
+        if not is_valid_loc:
+            messages.error(request, f"Location Error: {loc_err}")
+            return redirect('duty_list')
+
+        # 2. Shift Conflict Detection
+        has_conflict, conf_assign, conf_reason = DutyConflictService.detect_conflict(
+            staff_id=staff.id,
+            start_date=start_date,
+            end_date=end_date,
+            shift_start=datetime.time.fromisoformat(shift_start) if shift_start else None,
+            shift_end=datetime.time.fromisoformat(shift_end) if shift_end else None,
+            working_days=working_days
+        )
+        if has_conflict and not force_override:
+            messages.error(request, f"Shift Conflict Detected: {conf_reason} Check 'Force Override' if authorized.")
+            return redirect('duty_list')
+
+        # 3. Staff Leave Status Check
+        on_leave, leave_msg = DutyConflictService.check_staff_leave_conflict(staff.id, start_date, end_date)
+        if on_leave:
+            messages.warning(request, f"Notice: {leave_msg} Ensure substitute handover if required.")
+
         duty = None
         if duty_id:
             duty = Duty.objects.filter(pk=duty_id).first()
@@ -945,84 +1094,268 @@ def duty_assign(request):
                     shift_start = duty.start_time
                 if not shift_end and duty.end_time:
                     shift_end = duty.end_time
-        
-        DutyAssignment.objects.create(
+
+        supervisor = None
+        if supervisor_id:
+            supervisor = User.objects.filter(pk=supervisor_id).first()
+
+        # Determine workflow status
+        initial_status = 'ACTIVE'
+        if duty and duty.requires_approval:
+            initial_status = 'PENDING_APPROVAL'
+
+        assignment = DutyAssignment.objects.create(
             duty=duty,
             staff=staff,
-            duty_title=duty_title,
+            duty_title=duty_title or (duty.name if duty else "General Duty"),
+            building_id=building_id,
+            block=block,
+            floor=int(floor) if floor else None,
+            room_id=room_id,
             specific_location=specific_location,
+            start_date=start_date,
+            end_date=end_date,
             shift_start=shift_start,
             shift_end=shift_end,
-            description=description
+            working_days=working_days,
+            status=initial_status,
+            supervisor=supervisor,
+            description=description,
+            is_active=True
         )
-        messages.success(request, f'Duty assigned to {staff.name} successfully.')
+
+        DutyApprovalLog.objects.create(
+            assignment=assignment,
+            action='CREATED',
+            performed_by=request.user,
+            notes="Duty assignment registered in system.",
+            ip_address=_get_client_ip(request)
+        )
+
+        if initial_status == 'PENDING_APPROVAL':
+            DutyApprovalLog.objects.create(
+                assignment=assignment,
+                action='SUBMITTED',
+                performed_by=request.user,
+                notes="Submitted for supervisor approval signoff.",
+                ip_address=_get_client_ip(request)
+            )
+            messages.info(request, f"Duty assignment for '{staff.name}' created and submitted for supervisor approval.")
+        else:
+            messages.success(request, f"Duty assignment for '{staff.name}' activated successfully.")
+
     return redirect('duty_list')
 
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'edit')
 def duty_edit(request, pk):
+    """Updates an existing duty assignment."""
     assignment = get_object_or_404(DutyAssignment, pk=pk)
     if request.method == 'POST':
         data = request.POST
         staff_id = data.get('staff_id')
         duty_id = data.get('duty_id')
         duty_title = data.get('duty_title', '').strip()
+        building_id = data.get('building_id') or None
+        block = data.get('block_id', '').strip() or None
+        floor = data.get('floor_id') or None
+        room_id = data.get('room_id') or None
         specific_location = data.get('specific_location', '').strip()
+
+        start_date = data.get('start_date') or assignment.start_date
+        end_date = data.get('end_date') or None
         shift_start = data.get('shift_start') or None
         shift_end = data.get('shift_end') or None
+        working_days_list = data.getlist('working_days')
+        working_days = ",".join(working_days_list) if working_days_list else assignment.working_days
+
+        supervisor_id = data.get('supervisor_id') or None
         description = data.get('description', '').strip()
-        
+
         staff = get_object_or_404(StaffProfile, pk=staff_id)
-        
+
+        # Hierarchy validation
+        is_valid_loc, loc_err = DutyConflictService.validate_location_hierarchy(
+            building_id=building_id, block=block, floor=floor, room_id=room_id
+        )
+        if not is_valid_loc:
+            messages.error(request, f"Location Error: {loc_err}")
+            return redirect('duty_list')
+
         duty = None
         if duty_id:
             duty = Duty.objects.filter(pk=duty_id).first()
             if duty and not duty_title:
                 duty_title = duty.name
-        
+
         assignment.duty = duty
         assignment.staff = staff
         assignment.duty_title = duty_title
+        assignment.building_id = building_id
+        assignment.block = block
+        assignment.floor = int(floor) if floor else None
+        assignment.room_id = room_id
         assignment.specific_location = specific_location
+        assignment.start_date = start_date
+        assignment.end_date = end_date
         assignment.shift_start = shift_start
         assignment.shift_end = shift_end
+        assignment.working_days = working_days
+        if supervisor_id:
+            assignment.supervisor_id = supervisor_id
         assignment.description = description
         assignment.save()
-        messages.success(request, f"Duty assignment for {staff.name} updated.")
-    return redirect('duty_list')
 
+        DutyApprovalLog.objects.create(
+            assignment=assignment,
+            action='CREATED',
+            performed_by=request.user,
+            notes="Duty assignment details updated.",
+            ip_address=_get_client_ip(request)
+        )
+        messages.success(request, f"Duty assignment for '{staff.name}' updated successfully.")
+
+    return redirect('duty_list')
 
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'delete')
 def duty_delete(request, pk):
+    """Deletes an assignment record."""
     assignment = get_object_or_404(DutyAssignment, pk=pk)
     if request.method == 'POST':
+        staff_name = assignment.staff.name
+        title = assignment.duty_title
         assignment.delete()
-        messages.success(request, 'Duty assignment deleted.')
+        messages.success(request, f"Duty assignment '{title}' for '{staff_name}' deleted.")
+    return redirect('duty_list')
+
+
+@login_required(login_url='/authentication/login')
+@permission_required('duty_management', 'approve')
+def duty_approve(request, pk):
+    """Approves a pending duty assignment. Enforces self-approval block."""
+    if request.method == 'POST':
+        assignment = get_object_or_404(DutyAssignment, pk=pk)
+        notes = request.POST.get('notes', '')
+        try:
+            DutyWorkflowService.approve_assignment(
+                assignment=assignment,
+                approved_by_user=request.user,
+                notes=notes,
+                ip_address=_get_client_ip(request)
+            )
+            messages.success(request, f"Duty assignment '{assignment.duty_title}' approved successfully.")
+        except PermissionDenied as pe:
+            messages.error(request, str(pe))
+        except Exception as e:
+            messages.error(request, f"Approval error: {e}")
+    return redirect('duty_list')
+
+
+@login_required(login_url='/authentication/login')
+@permission_required('duty_management', 'reject')
+def duty_reject(request, pk):
+    """Rejects a duty assignment with mandatory reason."""
+    if request.method == 'POST':
+        assignment = get_object_or_404(DutyAssignment, pk=pk)
+        reason = request.POST.get('reason', '').strip()
+        if not reason:
+            messages.error(request, "A mandatory reason is required to reject a duty assignment.")
+            return redirect('duty_list')
+        try:
+            DutyWorkflowService.reject_assignment(
+                assignment=assignment,
+                rejected_by_user=request.user,
+                reason=reason,
+                ip_address=_get_client_ip(request)
+            )
+            messages.info(request, f"Duty assignment '{assignment.duty_title}' was rejected.")
+        except Exception as e:
+            messages.error(request, f"Rejection error: {e}")
+    return redirect('duty_list')
+
+
+@login_required(login_url='/authentication/login')
+@permission_required('duty_management', 'assign')
+def duty_handover(request, pk):
+    """Emergency handover of an active duty assignment to a qualified replacement staff member."""
+    if request.method == 'POST':
+        assignment = get_object_or_404(DutyAssignment, pk=pk)
+        substitute_id = request.POST.get('substitute_staff_id')
+        reason = request.POST.get('reason', '').strip()
+
+        if not substitute_id:
+            messages.error(request, "Please select a replacement staff member.")
+            return redirect('duty_list')
+
+        substitute_staff = get_object_or_404(StaffProfile, pk=substitute_id)
+        try:
+            DutyWorkflowService.handover_duty(
+                assignment=assignment,
+                substitute_staff=substitute_staff,
+                performed_by_user=request.user,
+                reason=reason,
+                ip_address=_get_client_ip(request)
+            )
+            messages.success(request, f"Duty '{assignment.duty_title}' successfully handed over to '{substitute_staff.name}'.")
+        except Exception as e:
+            messages.error(request, f"Handover error: {e}")
+    return redirect('duty_list')
+
+
+@login_required(login_url='/authentication/login')
+@permission_required('duty_management', 'edit')
+def duty_revoke(request, pk):
+    """Immediate killswitch: revokes active duty assignment and cuts access."""
+    if request.method == 'POST':
+        assignment = get_object_or_404(DutyAssignment, pk=pk)
+        reason = request.POST.get('reason', 'Immediate revocation by supervisor/admin').strip()
+        try:
+            DutyWorkflowService.revoke_duty(
+                assignment=assignment,
+                revoked_by_user=request.user,
+                reason=reason,
+                ip_address=_get_client_ip(request)
+            )
+            messages.warning(request, f"Duty '{assignment.duty_title}' was revoked immediately.")
+        except Exception as e:
+            messages.error(request, f"Revocation error: {e}")
     return redirect('duty_list')
 
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'add')
 def duty_create(request):
+    """Creates a new RBDAC Duty Template with 10 actions and data scope."""
     if request.method == 'POST':
-        name = request.POST.get('name', '').strip()
-        description = request.POST.get('description', '').strip()
-        category = request.POST.get('category', 'Custom Duty').strip()
-        priority = request.POST.get('priority', 'medium')
-        start_date = request.POST.get('start_date') or None
-        end_date = request.POST.get('end_date') or None
-        start_time = request.POST.get('start_time') or None
-        end_time = request.POST.get('end_time') or None
-        repeat_type = request.POST.get('repeat_type', 'none')
-        
+        data = request.POST
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip()
+        category = data.get('category', 'Custom Duty').strip()
+        priority = data.get('priority', 'medium')
+        data_scope = data.get('data_scope', 'BUILDING')
+        requires_approval = data.get('requires_approval') == 'on'
+        working_days_list = data.getlist('working_days')
+        working_days = ",".join(working_days_list) if working_days_list else 'MON,TUE,WED,THU,FRI,SAT,SUN'
+        ceiling_role_id = data.get('privilege_ceiling_role') or None
+
+        start_date = data.get('start_date') or None
+        end_date = data.get('end_date') or None
+        start_time = data.get('start_time') or None
+        end_time = data.get('end_time') or None
+        repeat_type = data.get('repeat_type', 'none')
+
         duty = Duty.objects.create(
             name=name,
             description=description,
             category=category,
             priority=priority,
+            data_scope=data_scope,
+            requires_approval=requires_approval,
+            working_days=working_days,
+            privilege_ceiling_role_id=ceiling_role_id,
             start_date=start_date,
             end_date=end_date,
             start_time=start_time,
@@ -1031,85 +1364,154 @@ def duty_create(request):
             status='active',
             created_by=request.user
         )
-        
-        # Save permissions for each module
-        modules = ['leave', 'students', 'attendance']
+
+        # 10 Actions across supported HMS modules
+        modules = ['student', 'room', 'leave', 'attendance', 'complaint', 'fee', 'visitor', 'duty_management']
+        actions = ['view', 'add', 'edit', 'delete', 'approve', 'reject', 'verify', 'export', 'print', 'download', 'assign']
+
         for mod in modules:
-            can_view = request.POST.get(f'perm_{mod}_view') == 'on'
-            can_add = request.POST.get(f'perm_{mod}_add') == 'on'
-            can_edit = request.POST.get(f'perm_{mod}_edit') == 'on'
-            can_delete = request.POST.get(f'perm_{mod}_delete') == 'on'
-            
-            # If any permission is granted, save it
-            if can_view or can_add or can_edit or can_delete:
-                DutyPermission.objects.create(
-                    duty=duty,
-                    module_name=mod,
-                    can_view=can_view,
-                    can_add=can_add,
-                    can_edit=can_edit,
-                    can_delete=can_delete
-                )
-        
-        messages.success(request, f"Duty '{name}' created successfully.")
+            kwargs = {}
+            for act in actions:
+                kwargs[f'can_{act}'] = (data.get(f'perm_{mod}_{act}') == 'on')
+            if any(kwargs.values()):
+                DutyPermission.objects.create(duty=duty, module_name=mod, **kwargs)
+
+        messages.success(request, f"Duty Template '{name}' created with 10-action RBDAC policies.")
     return redirect('duty_list')
 
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'edit')
 def duty_edit_definition(request, pk):
+    """Updates an existing RBDAC Duty Template."""
     duty = get_object_or_404(Duty, pk=pk)
     if request.method == 'POST':
-        duty.name = request.POST.get('name', '').strip()
-        duty.description = request.POST.get('description', '').strip()
-        duty.category = request.POST.get('category', 'Custom Duty').strip()
-        duty.priority = request.POST.get('priority', 'medium')
-        duty.start_date = request.POST.get('start_date') or None
-        duty.end_date = request.POST.get('end_date') or None
-        duty.start_time = request.POST.get('start_time') or None
-        duty.end_time = request.POST.get('end_time') or None
-        duty.repeat_type = request.POST.get('repeat_type', 'none')
-        duty.status = request.POST.get('status', 'active')
+        data = request.POST
+        duty.name = data.get('name', '').strip()
+        duty.description = data.get('description', '').strip()
+        duty.category = data.get('category', 'Custom Duty').strip()
+        duty.priority = data.get('priority', 'medium')
+        duty.data_scope = data.get('data_scope', 'BUILDING')
+        duty.requires_approval = data.get('requires_approval') == 'on'
+        working_days_list = data.getlist('working_days')
+        if working_days_list:
+            duty.working_days = ",".join(working_days_list)
+        duty.privilege_ceiling_role_id = data.get('privilege_ceiling_role') or None
+
+        duty.start_date = data.get('start_date') or None
+        duty.end_date = data.get('end_date') or None
+        duty.start_time = data.get('start_time') or None
+        duty.end_time = data.get('end_time') or None
+        duty.repeat_type = data.get('repeat_type', 'none')
+        duty.status = data.get('status', 'active')
         duty.save()
-        
-        # Reset permissions
+
+        # Reset & Re-save permissions
         duty.permissions.all().delete()
-        modules = ['leave', 'students', 'attendance']
+        modules = ['student', 'room', 'leave', 'attendance', 'complaint', 'fee', 'visitor', 'duty_management']
+        actions = ['view', 'add', 'edit', 'delete', 'approve', 'reject', 'verify', 'export', 'print', 'download', 'assign']
+
         for mod in modules:
-            can_view = request.POST.get(f'perm_{mod}_view') == 'on'
-            can_add = request.POST.get(f'perm_{mod}_add') == 'on'
-            can_edit = request.POST.get(f'perm_{mod}_edit') == 'on'
-            can_delete = request.POST.get(f'perm_{mod}_delete') == 'on'
-            
-            if can_view or can_add or can_edit or can_delete:
-                DutyPermission.objects.create(
-                    duty=duty,
-                    module_name=mod,
-                    can_view=can_view,
-                    can_add=can_add,
-                    can_edit=can_edit,
-                    can_delete=can_delete
-                )
-        messages.success(request, f"Duty definition '{duty.name}' updated.")
+            kwargs = {}
+            for act in actions:
+                kwargs[f'can_{act}'] = (data.get(f'perm_{mod}_{act}') == 'on')
+            if any(kwargs.values()):
+                DutyPermission.objects.create(duty=duty, module_name=mod, **kwargs)
+
+        messages.success(request, f"Duty Template '{duty.name}' updated successfully.")
     return redirect('duty_list')
 
 
 @login_required(login_url='/authentication/login')
 @permission_required('duty_management', 'delete')
 def duty_delete_definition(request, pk):
+    """Deletes a duty template."""
     duty = get_object_or_404(Duty, pk=pk)
     if request.method == 'POST':
+        name = duty.name
         duty.delete()
-        messages.success(request, "Duty definition deleted.")
+        messages.success(request, f"Duty Template '{name}' deleted.")
     return redirect('duty_list')
+
+
+# ──────────────────────────────────────────────────────
+# AJAX HIERARCHY & CONFLICT DETECTION ENDPOINTS
+# ──────────────────────────────────────────────────────
+@login_required(login_url='/authentication/login')
+@api_permission_required('duty_management', 'view')
+def get_floors_for_building(request):
+    """Returns total floors and comma-separated blocks for the selected building."""
+    building_id = request.GET.get('building_id')
+    if not building_id:
+        return JsonResponse({'floors': [], 'blocks': []})
+
+    building = HostelBuilding.objects.filter(pk=building_id).first()
+    if not building:
+        return JsonResponse({'floors': [], 'blocks': []})
+
+    floors = [{'id': i, 'floor_number': i} for i in range(1, (building.total_floors or 1) + 1)]
+    blocks = [b.strip() for b in (building.blocks or '').split(',') if b.strip()]
+    return JsonResponse({'floors': floors, 'blocks': blocks})
 
 
 @login_required(login_url='/authentication/login')
 @api_permission_required('duty_management', 'view')
-def get_floors_for_building(request):
-    return JsonResponse({'floors': []})
+def get_rooms_for_building_floor(request):
+    """Returns rooms matching building, floor, and optional block."""
+    building_id = request.GET.get('building_id')
+    floor = request.GET.get('floor')
+    block = request.GET.get('block', '').strip()
+
+    if not building_id:
+        return JsonResponse({'rooms': []})
+
+    qs = Room.objects.filter(building_id=building_id)
+    if floor and floor.isdigit():
+        qs = qs.filter(floor=int(floor))
+    if block:
+        qs = qs.filter(block__iexact=block)
+
+    rooms = [{'id': r.id, 'room_number': r.room_number, 'category': r.get_category_display()} for r in qs.order_by('room_number')]
+    return JsonResponse({'rooms': rooms})
 
 
+@login_required(login_url='/authentication/login')
+@api_permission_required('duty_management', 'view')
+def check_duty_conflict_ajax(request):
+    """Real-time conflict detection AJAX endpoint for Assign/Edit modals."""
+    staff_id = request.GET.get('staff_id')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date') or None
+    shift_start_str = request.GET.get('shift_start') or None
+    shift_end_str = request.GET.get('shift_end') or None
+    working_days = request.GET.get('working_days', 'MON,TUE,WED,THU,FRI,SAT,SUN')
+    exclude_id = request.GET.get('exclude_id')
 
+    if not staff_id or not start_date:
+        return JsonResponse({'conflict': False, 'reason': ''})
 
+    try:
+        s_time = datetime.time.fromisoformat(shift_start_str) if shift_start_str else None
+        e_time = datetime.time.fromisoformat(shift_end_str) if shift_end_str else None
+    except Exception:
+        s_time = None
+        e_time = None
 
+    has_conflict, _, reason = DutyConflictService.detect_conflict(
+        staff_id=int(staff_id),
+        start_date=start_date,
+        end_date=end_date,
+        shift_start=s_time,
+        shift_end=e_time,
+        working_days=working_days,
+        exclude_id=int(exclude_id) if exclude_id and exclude_id.isdigit() else None
+    )
+
+    on_leave, leave_reason = DutyConflictService.check_staff_leave_conflict(staff_id, start_date, end_date)
+
+    return JsonResponse({
+        'conflict': has_conflict,
+        'conflict_reason': reason,
+        'on_leave': on_leave,
+        'leave_reason': leave_reason,
+    })

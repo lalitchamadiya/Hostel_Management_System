@@ -8,10 +8,10 @@ from functools import wraps
 # Utility helper — callable anywhere in views
 # ──────────────────────────────────────────────────────────────────────────────
 
-def check_perm(user, module_code, action):
+def check_perm(user, module_code, action, target_obj=None):
     """
     Returns True if the user has the given action permission on the module.
-    Actions: view, add, edit, delete, approve, reject, export, print, import, hide, disable
+    Actions: view, add, edit, delete, approve, reject, verify, export, print, download, assign
     Always returns True for super-admins or Django superusers.
     """
     if not user.is_authenticated:
@@ -28,28 +28,13 @@ def check_perm(user, module_code, action):
     if profile and profile.role and profile.role.is_superadmin:
         return True
 
-    # 1. Overlay/intercept active duty permissions
+    # 1. Overlay/intercept active duty permissions via Enterprise DutyAuthorizationService
     try:
-        from hms.models import DutyAssignment
-        # Query active assignment
-        assignment = DutyAssignment.objects.filter(staff__user=user, is_active=True).first()
-        if assignment and assignment.duty:
-            # Map core module code to duty module name
-            core_to_duty = {
-                'leave': 'leave',
-                'student': 'students',
-                'attendance': 'attendance',
-            }
-            duty_mod = core_to_duty.get(module_code)
-            if duty_mod:
-                dp = assignment.duty.permissions.filter(module_name=duty_mod).first()
-                if dp:
-                    field = f'can_{action}'
-                    return getattr(dp, field, False)
-                else:
-                    # Duty is active, but doesn't grant permissions to this module
-                    return False
-    except Exception as e:
+        from hms.duty_services import DutyAuthorizationService
+        granted, _ = DutyAuthorizationService.evaluate_duty_permission(user, module_code, action, target_obj=target_obj)
+        if granted:
+            return True
+    except Exception:
         pass
 
     # 2. Fall back to standard Role-based check (Fail-Closed: role must be active)
@@ -58,6 +43,11 @@ def check_perm(user, module_code, action):
         if perm:
             return getattr(perm, f'can_{action}', False)
     return False
+
+
+def check_scoped_perm(user, module_code, action, target_obj=None):
+    """Convenience helper to check action permission against a specific target object scope."""
+    return check_perm(user, module_code, action, target_obj=target_obj)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
